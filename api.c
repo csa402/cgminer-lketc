@@ -31,7 +31,7 @@
 	defined(USE_KNC) || defined(USE_BAB) || defined(USE_DRILLBIT) || \
 	defined(USE_MINION) || defined(USE_COINTERRA) || defined(USE_BITMINE_A1) || \
 	defined(USE_ANT_S1) || defined(USE_ANT_S2) || defined(USE_SPONDOOLIES) || \
-	defined(USE_GRIDSEED) || defined(USE_ZEUS)
+	defined(USE_GRIDSEED) || defined(USE_ZEUS) || defined(USE_LKETC)
 #define HAVE_AN_ASIC 1
 #endif
 
@@ -211,6 +211,9 @@ static const char *DEVICECODE = ""
 			"ZUS "
 #endif
 
+#ifdef USE_ZEUS
+            "LKE "
+#endif
 			"";
 
 static const char *OSINFO =
