@@ -1,29 +1,26 @@
-cgminer-scrypt-mod2
+cgminer-scrypt
 ==============
 
 CGMiner 4.3.5 with GridSeed, Zeus and Lketc scrypt ASIC support.
 
-This file describes Lketc-specific settings and options.
+This file describes Scrypt-specific settings and options.
 
-For general CGMiner information refer to doc/README.
+For general CGMiner information refer to README.
+
+Scrypt algorithm code was ported from CGMiner version 3.7.2.
 
 ## LKETC usb miner ##
 This code is forked from original cgminer-dmaxl-zeus.
 
 I made a custom driver for LKETC usb miner that you can find on ebay, like this:
-
-![](https://raw.githubusercontent.com/wareck/cgminer-lketc/master/docs/lketc.jpg)
-
+![Extended Canvas Screenshot](http://farman-aeromodelisme.fr/hors_site/lketc.jpg)
 
 My code is base on Zeus scrypt Asic, but I made some changes to enable possibility to use Zeus and LKETC as same time (with tuning for each kind of miner)
 
 to build this specific code:
 
-	sudo apt-get update
-	sudo apt-get install build-essential autoconf automake libtool pkg-config libcurl4-openssl-dev libudev-dev \
-	libjansson-dev libncurses5-dev	libudev-dev libjansson-dev
 	./autogen.sh
-	./configure --enable-scrypt --enable-lketc
+	./configure --enable-scrypt --enable-zeus
 	make
 
 ### Option Summary ###
@@ -53,11 +50,3 @@ Exemple If you use Lketc and a Gaw Fury :
 
 	./cgminer --scrypt --lketc-clock 280 --zeus-chips 6 --zeus-clock 328
 
-![](https://raw.githubusercontent.com/wareck/cgminer-lketc/master/docs/mining.png)
-
-## Nicehash extranonce support ##
-
-You can use your miner with last extranonce support for nicehash by adding #xnsub at the address end, like this:
-
-	./cgminer --scrypt -o stratum+tcp://scrypt.eu.nicehash.com:3333#xnsub -u my_btc_address -p x --lketc-clock 280
-	
