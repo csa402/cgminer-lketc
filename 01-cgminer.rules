@@ -54,3 +54,6 @@ ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", SUBSYSTEM=="usb", ACTION=="ad
 # (already covered by Antminer and Avalon, just for documentation)
 #ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SUBSYSTEM=="usb", ACTION=="add", MODE="0666", GROUP="plugdev"
 #ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SUBSYSTEM=="usb", ACTION=="add", MODE="0666", GROUP="plugdev"
+
+# Lketc
+ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SUBSYSTEM=="usb", ACTION=="add", MODE="0666", GROUP="plugdev"
