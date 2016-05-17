@@ -152,3 +152,7 @@ endif
 if HAS_ZEUS
 cgminer_SOURCES += driver-zeus.c driver-zeus.h
 endif
+
+if HAS_LKETC
+cgminer_SOURCES += driver-lketc.c driver-lketc.h
+endif

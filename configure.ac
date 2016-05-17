@@ -4,7 +4,7 @@ m4_define([v_maj], [4])
 m4_define([v_min], [3])
 m4_define([v_mic], [5])
 ##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##
-m4_define([v_ver], [v_maj.v_min.v_mic-scrypt.2])
+m4_define([v_ver], [v_maj.v_min.v_mic-scrypt.2-mod])
 m4_define([lt_rev], m4_eval(v_maj + v_min))
 m4_define([lt_cur], v_mic)
 m4_define([lt_age], v_min)
@@ -364,6 +364,17 @@ if test "x$zeus" = xyes; then
 fi
 AM_CONDITIONAL([HAS_ZEUS], [test x$zeus = xyes])
 
+lketc="no"
+
+AC_ARG_ENABLE([lketc],
+        [AC_HELP_STRING([--enable-lketc],[Compile support for Lketc miner (default disabled) (EXPERIMENTAL)])],
+        [lketc=$enableval]
+        )
+if test "x$lketc" = xyes; then
+        AC_DEFINE([USE_FPGA_SERIAL], [1], [Defined to 1 if serial support required])
+        AC_DEFINE([USE_LKETC], [1], [Defined to 1 if Lketc support is wanted])
+fi
+AM_CONDITIONAL([HAS_LKETC], [test x$lketc = xyes])
 
 curses="auto"
 
@@ -389,7 +400,7 @@ else
 	])
 fi
 
-if test x$avalon$bitforce$bitfury$modminer$bflsc$icarus$hashfast$klondike$drillbit$cointerra$ants1$ants2$gridseed$zeus != xnononononononononononononono; then
+if test x$avalon$bitforce$bitfury$modminer$bflsc$icarus$hashfast$klondike$drillbit$cointerra$ants1$ants2$gridseed$zeus$lketc != xnonononononononononononononono; then
 	want_usbutils=true
 else
 	want_usbutils=false
@@ -401,13 +412,13 @@ else
 	want_libbitfury=false
 fi
 
-if test x$gridseed$zeus != xnono; then
+if test x$gridseed$zeus$lketc != xnonono; then
 	want_libudev=true
 else
 	want_libudev=false
 fi
 
-AM_CONDITIONAL([NEED_FPGAUTILS], [test x$avalon2$modminer$gridseed$zeus != xnononono])
+AM_CONDITIONAL([NEED_FPGAUTILS], [test x$avalon2$modminer$gridseed$zeus$lketc != xnonononono])
 AM_CONDITIONAL([WANT_USBUTILS], [test x$want_usbutils != xfalse])
 AM_CONDITIONAL([WANT_LIBBITFURY], [test x$want_libbitfury != xfalse])
 AM_CONDITIONAL([HAVE_CURSES], [test x$curses = xyes])
@@ -712,7 +723,13 @@ else
 	echo "  Zeus.ASICs...........: Disabled"
 fi
 
-if test "x$avalon$avalon2$bab$bflsc$bitforce$bitfury$hashfast$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$ants2$spondoolies$gridseed$zeus" = xnononononononononononononononononononono; then
+if test "x$lketc" = xyes; then
+	echo "  Lketc.ASICs..........: Enabled"
+else
+	echo "  Lketc.ASICs..........: Disabled"
+fi
+
+if test "x$avalon$avalon2$bab$bflsc$bitforce$bitfury$hashfast$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$ants2$spondoolies$gridseed$zeus$lketc" = xnonononononononononononononononononononono; then
 	AC_MSG_ERROR([No mining configured in])
 fi
 

@@ -108,6 +108,11 @@ char *curly = ":D";
 #include "driver-zeus.h"
 #endif
 
+#ifdef USE_LKETC
+#include "driver-lketc.h"
+#endif
+
+
 #if defined(USE_BITFORCE) || defined(USE_ICARUS) || defined(USE_AVALON) || defined(USE_AVALON2) || defined(USE_MODMINER)
 #	define USE_FPGA
 #endif
@@ -264,6 +269,14 @@ char *opt_gridseed_options = NULL;
 char *opt_gridseed_freq = NULL;
 char *opt_gridseed_override = NULL;
 #endif
+#ifdef USE_LKETC
+bool opt_lketc_debug;
+int opt_lketc_chips_count;
+int opt_lketc_chip_clk;
+bool opt_lketc_nocheck_golden;
+char *opt_lketc_options;
+#endif
+
 #ifdef USE_ZEUS
 bool opt_zeus_debug;
 int opt_zeus_chips_count;
@@ -1565,6 +1578,24 @@ static struct opt_table opt_config_table[] = {
 			opt_set_charp, NULL, &opt_zeus_options,
 			"Set individual Zeus device options: ID,chips,clock[;ID,chips,clock...]"),
 #endif
+#ifdef USE_LKETC
+        OPT_WITH_ARG("--lketc-chips",
+                        set_int_1_to_1024, NULL, &opt_lketc_chips_count,
+                        "Number of LKETC chips per device"),
+        OPT_WITH_ARG("--lketc-clock",
+                        opt_set_intval, NULL, &opt_lketc_chip_clk,
+                        "LKETC chip clock speed (MHz)"),
+        OPT_WITHOUT_ARG("--lketc-debug",
+                        opt_set_bool, &opt_lketc_debug,
+                        "Enable extra LKETC driver debugging output in verbose mode"),
+        OPT_WITHOUT_ARG("--lketc-nocheck-golden",
+                        opt_set_bool, &opt_lketc_nocheck_golden,
+                        "Skip golden nonce verification during initialization"),
+        OPT_WITH_ARG("--lketc-options",
+                        opt_set_charp, NULL, &opt_lketc_options,
+                        "Set individual LKETC device options: ID,chips,clock[;ID,chips,clock...]"),
+#endif
+
 	OPT_ENDTABLE
 };
 
@@ -1795,6 +1826,10 @@ static char *opt_verusage_and_exit(const char *extra)
 #ifdef USE_ZEUS
 		"Zeus "
 #endif
+#ifdef USE_LKETC
+                "Lketc "
+#endif
+
 #ifdef USE_SCRYPT
 		"scrypt "
 #endif

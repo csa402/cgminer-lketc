@@ -246,7 +246,8 @@ static inline int fsync (int fd)
 	DRIVER_ADD_COMMAND(avalon) \
 	DRIVER_ADD_COMMAND(spondoolies) \
 	DRIVER_ADD_COMMAND(gridseed) \
-	DRIVER_ADD_COMMAND(zeus)
+	DRIVER_ADD_COMMAND(zeus) \
+	DRIVER_ADD_COMMAND(lketc)
 
 #define DRIVER_PARSE_COMMANDS(DRIVER_ADD_COMMAND) \
 	FPGA_PARSE_COMMANDS(DRIVER_ADD_COMMAND) \
@@ -1049,6 +1050,13 @@ extern int opt_zeus_chip_clk;
 extern bool opt_zeus_nocheck_golden;
 extern char *opt_zeus_options;
 #endif
+#ifdef USE_LKETC
+extern bool opt_lketc_debug;
+extern int opt_lketc_chips_count;
+extern int opt_lketc_chip_clk;
+extern bool opt_lketc_nocheck_golden;
+extern char *opt_lketc_options;
+#endif
 extern int swork_id;
 
 #if LOCK_TRACKING
@@ -1321,6 +1329,7 @@ struct pool {
 	char bbversion[12];
 	char nbit[12];
 	char ntime[12];
+	double next_diff;
 	double sdiff;
 
 	struct timeval tv_lastwork;

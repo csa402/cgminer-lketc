@@ -74,6 +74,10 @@
 #define FTDI_VALUE_BAUD_ZUS 0x001a
 #define FTDI_INDEX_BAUD_ZUS 0x0000
 #define FTDI_VALUE_DATA_ZUS 8
+// LKTEC
+#define FTDI_VALUE_BAUD_LKE 0x001a
+#define FTDI_INDEX_BAUD_LKE 0x0000
+#define FTDI_VALUE_DATA_LKE 8
 
 #define FTDI_VALUE_FLOW 0
 #define FTDI_VALUE_MODEM 0x0303
@@ -171,7 +175,9 @@ enum sub_ident {
 	IDENT_GSD2,
 	IDENT_GSD3,
 	IDENT_ZUS1,
-	IDENT_ZUS2
+	IDENT_ZUS2,
+	IDENT_LKE,
+	IDENT_LKE1
 };
 
 struct usb_find_devices {
