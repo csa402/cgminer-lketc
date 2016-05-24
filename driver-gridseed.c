@@ -2142,7 +2142,7 @@ static struct api_data *gridseed_api_stats(struct cgpu_info *gridseed)
 
 static void gridseed_get_statline_before(char *buf, size_t siz, struct cgpu_info *gridseed) {
 	GRIDSEED_INFO *info = gridseed->device_data;
-	tailsprintf(buf, siz, "%4d MHz  ", info->freq);
+	//tailsprintf(buf, siz, "%4d MHz  ", info->freq);
 	if (info->mode == MODE_SHA256)
 		tailsprintf(buf, siz, "SHA256");
 	else if (info->mode == MODE_SHA256_DUAL)
@@ -2151,6 +2151,7 @@ static void gridseed_get_statline_before(char *buf, size_t siz, struct cgpu_info
 		tailsprintf(buf, siz, "SCRYPT");
 	else if (info->mode == MODE_SCRYPT_DUAL)
 		tailsprintf(buf, siz, "DUAL / SCRYPT");
+		tailsprintf(buf, siz, "        %4d MHz  ", info->freq); //fix typo
 }
 
 static void gridseed_get_statline(char *buf, size_t siz, struct cgpu_info *gridseed) {
