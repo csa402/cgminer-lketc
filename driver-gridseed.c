@@ -908,7 +908,7 @@ static bool get_options(GRIDSEED_INFO *info, const char *options)
 	if (options == NULL)
 		return false;
 
-	applog(LOG_NOTICE, "GridSeed options: '%s'", options);
+	//applog(LOG_NOTICE, "GridSeed options: '%s'", options);
 	ss = strdup(options);
 	p  = ss;
 	end = p + strlen(p);
