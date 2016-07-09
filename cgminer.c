@@ -232,6 +232,10 @@ static bool no_work;
 char *opt_icarus_options = NULL;
 char *opt_icarus_timing = NULL;
 float opt_anu_freq = 200;
+int opt_dualminer_pll = 0;
+int opt_dualminer_btc = -1;
+//add by wangzhaofeng
+int opt_dualminer_interface = 0;
 #endif
 #ifdef USE_DUALMINER
 char *opt_icarus_options = NULL;
@@ -1134,6 +1138,17 @@ static char *set_null(const char __maybe_unused *arg)
 
 /* These options are available from config file or commandline */
 static struct opt_table opt_config_table[] = {
+#ifdef USE_DUALMINER
+	OPT_WITH_ARG("--dualminer-pll",
+		     set_dualminer_pll, NULL, NULL,
+		     opt_hidden),
+    OPT_WITH_ARG("--dualminer-btc",
+		     set_dualminer_btc, NULL, NULL,
+		     opt_hidden),
+	OPT_WITH_ARG("--dualminer-interface",
+		     set_dualminer_interface, NULL, NULL,
+		     opt_hidden),
+#endif	
 #ifdef USE_ICARUS
 	OPT_WITH_ARG("--anu-freq",
 		     set_float_125_to_500, &opt_show_intval, &opt_anu_freq,
