@@ -408,7 +408,100 @@ static void dualminer_initialise(struct cgpu_info *dualminer, int baud)
 				 interface, C_PURGERX);
 			break;
 		case IDENT_DM:
+		transfer(dualminer, FTDI_TYPE_OUT, FTDI_REQUEST_BAUD, 0xC068, 0x201 , C_SETBAUD);
+			if (dualminer->usbinfo.nodev)
+				return;
+             //add by wangzhaofeng
+			 if(!opt_dualminer_interface)
+			 {
+			 //interface b  baund and tx rx purge
+			transfer(dualminer, FTDI_TYPE_OUT, FTDI_REQUEST_BAUD, 0xC068, 0x202 , C_SETBAUD);
+			if (dualminer->usbinfo.nodev)
+				return;
+			transfer(dualminer, FTDI_TYPE_OUT, FTDI_REQUEST_RESET, FTDI_VALUE_PURGE_TX, FTDI_INTERFACE_B, C_PURGETX);
+			if (dualminer->usbinfo.nodev)
+				return;
+
+			transfer(dualminer, FTDI_TYPE_OUT, FTDI_REQUEST_RESET, FTDI_VALUE_PURGE_RX, FTDI_INTERFACE_B, C_PURGERX);
+			if (dualminer->usbinfo.nodev)
+				return;
+			}
+			transfer(dualminer, FTDI_TYPE_OUT, FTDI_REQUEST_RESET, FTDI_VALUE_PURGE_TX, FTDI_INTERFACE_A, C_PURGETX);
+			if (dualminer->usbinfo.nodev)
+				return;
+
+			transfer(dualminer, FTDI_TYPE_OUT, FTDI_REQUEST_RESET, FTDI_VALUE_PURGE_RX, FTDI_INTERFACE_A, C_PURGERX);
+			if (dualminer->usbinfo.nodev)
+				return;
+
 			
+
+			dualminer_set_dtr(dualminer, 0);
+			usleep(DEFAULT_DELAY_TIME);
+			dualminer_set_dtr(dualminer, 1);
+			usleep(DEFAULT_DELAY_TIME);
+             if(!opt_dualminer_interface)
+			 {
+			dualminer_send_cmds(dualminer, btc_gating, FTDI_INTERFACE_A);
+			dualminer_send_cmds(dualminer, btc_init, FTDI_INTERFACE_A);
+			dualminer_send_cmds(dualminer, ltc_init, FTDI_INTERFACE_B);
+			}
+			else
+			{
+			dualminer_send_cmds(dualminer,ltc_only_init,FTDI_INTERFACE_A);
+			}
+			if(opt_dualminer_pll != 0)
+			{
+				dualminer_set_pll_freq(dualminer, opt_dualminer_pll);
+				opt_pll_freq = opt_dualminer_pll;
+			}
+			else
+			{
+				if(dualminer_get_cts(dualminer) == 0)
+				{
+					dualminer_send_cmds(dualminer, pll_freq_550M_cmd, FTDI_INTERFACE_A);
+					opt_pll_freq = 550;
+				}
+				else
+				{
+					dualminer_send_cmds(dualminer, pll_freq_850M_cmd, FTDI_INTERFACE_A);
+					opt_pll_freq = 850;
+				}
+			}
+			if(!opt_dualminer_interface)
+			dualminer_send_cmds(dualminer, btc_open_nonce_unit, FTDI_INTERFACE_A);
+			break;
+		case IDENT_CP:
+                        usb_set_pps(dualminer, CP210X_PREF_PACKET); //
+			//enable uart
+                        transfer(dualminer, CP210X_TYPE_OUT, CP210X_REQUEST_IFC_ENABLE, CP210X_VALUE_UART_ENABLE,FTDI_INTERFACE_A, C_ENABLE_UART);
+                        if (dualminer->usbinfo.nodev)
+                                return;
+                        // Set data control
+                        transfer(dualminer, CP210X_TYPE_OUT, CP210X_REQUEST_DATA, CP210X_VALUE_DATA,FTDI_INTERFACE_A, C_SETDATA);
+                        if (dualminer->usbinfo.nodev)
+                                return;
+			//set baud
+                        data = CP210X_DATA_BAUD;
+			_transfer(dualminer, CP210X_TYPE_OUT, CP210X_REQUEST_BAUD, 0,0, &data, sizeof(data), C_SETBAUD);
+			
+			if(!opt_dualminer_interface)
+			{
+				
+                                _transfer(dualminer, CP210X_TYPE_OUT, CP210X_REQUEST_BAUD, 0,1, &data, sizeof(data), C_SETBAUD);
+				dualminer_send_cmds(dualminer, btc_gating, FTDI_INTERFACE_A);
+				dualminer_send_cmds(dualminer, btc_init, FTDI_INTERFACE_A);
+				dualminer_send_cmds(dualminer, ltc_init, FTDI_INTERFACE_B);
+			}
+			else
+			{
+				dualminer_send_cmds(dualminer,ltc_only_init,FTDI_INTERFACE_A);
+			}
+				
+			if(!opt_dualminer_interface)
+			dualminer_send_cmds(dualminer, btc_open_nonce_unit, FTDI_INTERFACE_A);
+			
+			dualminer_send_cmds(dualminer, pll_freq_850M_cmd, FTDI_INTERFACE_A);	
 			break;
 		default:
 			quit(1, "dualminer_intialise() called with invalid %s cgid %i ident=%d",
