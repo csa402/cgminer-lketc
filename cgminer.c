@@ -1150,6 +1150,7 @@ static struct opt_table opt_config_table[] = {
 		     opt_hidden),
 */
 #endif	
+
 #ifdef USE_ICARUS
 	OPT_WITH_ARG("--anu-freq",
 		     set_float_125_to_500, &opt_show_intval, &opt_anu_freq,
