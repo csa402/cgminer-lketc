@@ -112,6 +112,9 @@ char *curly = ":D";
 #include "driver-lketc.h"
 #endif
 
+#ifdef USE_LKETC
+#include "driver-dualminer.h"
+#endif
 
 #if defined(USE_BITFORCE) || defined(USE_ICARUS) || defined(USE_AVALON) || defined(USE_AVALON2) || defined(USE_MODMINER)
 #	define USE_FPGA
@@ -226,6 +229,11 @@ bool opt_delaynet;
 bool opt_disable_pool;
 static bool no_work;
 #ifdef USE_ICARUS
+char *opt_icarus_options = NULL;
+char *opt_icarus_timing = NULL;
+float opt_anu_freq = 200;
+#endif
+#ifdef USE_DUALMINER
 char *opt_icarus_options = NULL;
 char *opt_icarus_timing = NULL;
 float opt_anu_freq = 200;

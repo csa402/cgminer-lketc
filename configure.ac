@@ -4,7 +4,7 @@ m4_define([v_maj], [4])
 m4_define([v_min], [3])
 m4_define([v_mic], [5])
 ##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##--##
-m4_define([v_ver], [v_maj.v_min.v_mic-scrypt.2-mod])
+m4_define([v_ver], [v_maj.v_min.v_mic-scrypt.2-mod3])
 m4_define([lt_rev], m4_eval(v_maj + v_min))
 m4_define([lt_cur], v_mic)
 m4_define([lt_age], v_min)
@@ -376,6 +376,18 @@ if test "x$lketc" = xyes; then
 fi
 AM_CONDITIONAL([HAS_LKETC], [test x$lketc = xyes])
 
+lketc="no"
+
+AC_ARG_ENABLE([dualminer],
+        [AC_HELP_STRING([--enable-dualminer],[Compile support for DualMiner (default disabled) (EXPERIMENTAL)])],
+        [dualminer=$enableval]
+        )
+if test "x$dualminer" = xyes; then
+        AC_DEFINE([USE_FPGA_SERIAL], [1], [Defined to 1 if serial support required])
+        AC_DEFINE([USE_DUALMINER], [1], [Defined to 1 if dualminer support is wanted])
+fi
+AM_CONDITIONAL([HAS_DUALMINER], [test x$dualminer = xyes])
+
 curses="auto"
 
 AC_ARG_WITH([curses],
@@ -400,7 +412,7 @@ else
 	])
 fi
 
-if test x$avalon$bitforce$bitfury$modminer$bflsc$icarus$hashfast$klondike$drillbit$cointerra$ants1$ants2$gridseed$zeus$lketc != xnonononononononononononononono; then
+if test x$avalon$bitforce$bitfury$modminer$bflsc$icarus$hashfast$klondike$drillbit$cointerra$ants1$ants2$gridseed$zeus$lketc$dualminer != xnononononononononononononononono; then
 	want_usbutils=true
 else
 	want_usbutils=false
@@ -412,7 +424,7 @@ else
 	want_libbitfury=false
 fi
 
-if test x$gridseed$zeus$lketc != xnonono; then
+if test x$gridseed$zeus$lketc$dualminer != xnononono; then
 	want_libudev=true
 else
 	want_libudev=false
@@ -728,8 +740,12 @@ if test "x$lketc" = xyes; then
 else
 	echo "  Lketc.ASICs..........: Disabled"
 fi
-
-if test "x$avalon$avalon2$bab$bflsc$bitforce$bitfury$hashfast$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$ants2$spondoolies$gridseed$zeus$lketc" = xnonononononononononononononononononononono; then
+if test "x$dualminer" = xyes; then
+	echo "  DualMiner.FPGAs......: Enabled"
+else
+	echo "  DualMiner.FPGAs......: Disabled"
+fi
+if test "x$avalon$avalon2$bab$bflsc$bitforce$bitfury$hashfast$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$ants2$spondoolies$gridseed$zeus$lketc$dualminer" = xnononononononononononononononononononononono; then
 	AC_MSG_ERROR([No mining configured in])
 fi
 
