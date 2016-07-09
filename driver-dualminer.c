@@ -334,9 +334,6 @@ static void dualminer_initialise(struct cgpu_info *dualminer, int baud)
 	ident = usb_ident(dualminer);
 
 	switch (ident) {
-		case IDENT_BLT:
-		case IDENT_LLT:
-		case IDENT_CMR1:
 		case IDENT_CMR2:
 			// Reset
 			transfer(dualminer, FTDI_TYPE_OUT, FTDI_REQUEST_RESET, FTDI_VALUE_RESET,
@@ -411,46 +408,7 @@ static void dualminer_initialise(struct cgpu_info *dualminer, int baud)
 				 interface, C_PURGERX);
 			break;
 		case IDENT_DM:
-			// Set Data Control
-			transfer(dualminer, PL2303_CTRL_OUT, PL2303_REQUEST_CTRL, PL2303_VALUE_CTRL,
-				 interface, C_SETDATA);
-
-			if (dualminer->usbinfo.nodev)
-				return;
-
-			// Set Line Control
-			uint32_t ica_data[2] = { PL2303_VALUE_LINE0, PL2303_VALUE_LINE1 };
-			_transfer(dualminer, PL2303_CTRL_OUT, PL2303_REQUEST_LINE, PL2303_VALUE_LINE,
-				 interface, &ica_data[0], PL2303_VALUE_LINE_SIZE, C_SETLINE);
-
-			if (dualminer->usbinfo.nodev)
-				return;
-
-			// Vendor
-			transfer(dualminer, PL2303_VENDOR_OUT, PL2303_REQUEST_VENDOR, PL2303_VALUE_VENDOR,
-				 interface, C_VENDOR);
-			break;
-		case IDENT_AMU:
-		case IDENT_ANU:
-			// Enable the UART
-			transfer(dualminer, CP210X_TYPE_OUT, CP210X_REQUEST_IFC_ENABLE,
-				 CP210X_VALUE_UART_ENABLE,
-				 interface, C_ENABLE_UART);
-
-			if (dualminer->usbinfo.nodev)
-				return;
-
-			// Set data control
-			transfer(dualminer, CP210X_TYPE_OUT, CP210X_REQUEST_DATA, CP210X_VALUE_DATA,
-				 interface, C_SETDATA);
-
-			if (dualminer->usbinfo.nodev)
-				return;
-
-			// Set the baud
-			uint32_t data = CP210X_DATA_BAUD;
-			_transfer(dualminer, CP210X_TYPE_OUT, CP210X_REQUEST_BAUD, 0,
-				 interface, &data, sizeof(data), C_SETBAUD);
+			
 			break;
 		default:
 			quit(1, "dualminer_intialise() called with invalid %s cgid %i ident=%d",
