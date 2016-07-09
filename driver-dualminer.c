@@ -773,7 +773,7 @@ static void get_options(int this_option_offset, struct cgpu_info *dualminer, int
 
 	ident = usb_ident(dualminer);
 	switch (ident) {
-		case IDENT_ICA:
+		case IDENT_DM:
 		default:
 			quit(1, "Icarus get_options() called with invalid %s ident=%d",
 				dualminer->drv->name, ident);
@@ -883,13 +883,19 @@ static struct cgpu_info *dualminer_detect_one(struct libusb_device *dev, struct 
 	//	than the timeout set in dualminer_open()
 	//	This one takes ~0.53ms on Rev3 Icarus
 	const char golden_ob[] =
-		"4679ba4ec99876bf4bfe086082b40025"
-		"4df6c356451471139a3afa71e48f544a"
-		"00000000000000000000000000000000"
-		"0000000087320b1a1426674f2fa722ce";
+		"55aa1f00000000000000000000000000"
+		"000000000000000000000000aaaaaaaa"
+		"711c0000603ebdb6e35b05223c54f815"
+		"5ac33123006b4192e7aafafbeb9ef654"
+		"4d2973d700000002069b9f9e3ce8a677"
+		"8dea3d7a00926cd6eaa9585502c9b83a"
+		"5601f198d7fbf09be9559d6335ebad36"
+		"3e4f147a8d9934006963030b4e54c408"
+		"c837ebc2eeac129852a55fee1b1d88f6"
+		"000c050000000600";
 
 	const char golden_nonce[] = "000187a2";
-	const uint32_t golden_nonce_val = 0x000187a2;
+	const uint32_t golden_nonce_val = 0x00050cdd;
 	unsigned char nonce_bin[DUALMINER_READ_SIZE];
 	struct DUALMINER_WORK workdata;
 	char *nonce_hex;
