@@ -1139,7 +1139,7 @@ static char *set_null(const char __maybe_unused *arg)
 /* These options are available from config file or commandline */
 static struct opt_table opt_config_table[] = {
 #ifdef USE_DUALMINER
-	OPT_WITH_ARG("--dualminer-pll",
+/*	OPT_WITH_ARG("--dualminer-pll",
 		     set_dualminer_pll, NULL, NULL,
 		     opt_hidden),
     OPT_WITH_ARG("--dualminer-btc",
@@ -1148,6 +1148,7 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITH_ARG("--dualminer-interface",
 		     set_dualminer_interface, NULL, NULL,
 		     opt_hidden),
+*/
 #endif	
 #ifdef USE_ICARUS
 	OPT_WITH_ARG("--anu-freq",
