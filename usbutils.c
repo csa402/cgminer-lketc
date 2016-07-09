@@ -75,11 +75,7 @@ static cgtimer_t usb11_cgt;
 #define GRIDSEED_TIMEOUT_MS 999
 #define ZEUS_TIMEOUT_MS 999
 #define LKETC_TIMEOUT_MS 999
-
-/* The safety timeout we use, cancelling async transfers on windows that fail
- * to timeout on their own. */
-#define WIN_CALLBACK_EXTRA 40
-#define WIN_WRITE_CBEXTRA 5000
+#define DUALMINER_TIMEOUT_MS 999
 #else
 #define BFLSC_TIMEOUT_MS 300
 #define BITFORCE_TIMEOUT_MS 200
@@ -91,6 +87,16 @@ static cgtimer_t usb11_cgt;
 #define GRIDSEED_TIMEOUT_MS 200
 #define ZEUS_TIMEOUT_MS 200
 #define LKETC_TIMEOUT_MS 200
+#define DUALMINER_TIMEOUT_MS 999
+#endif
+
+#if defined(__arm__)
+#define DUALMINER_TIMEOUT_MS 0
+#define CP210X_TIMEOUT_MS 0
+#else
+#define DUALMINER_TIMEOUT_MS 100
+#define CP210X_TIMEOUT_MS 500
+#endif
 #endif
 
 #define USB_EPS(_intx, _epinfosx) { \
@@ -269,6 +275,37 @@ static struct usb_intinfo kli_ints[] = {
 };
 #endif
 
+#ifdef USE_DUALMINER
+static struct usb_epinfo dmA_epinfos[] = {
+	{ LIBUSB_TRANSFER_TYPE_BULK,	64,	EPI(1), 0, 0 },
+	{ LIBUSB_TRANSFER_TYPE_BULK,	64,	EPO(2), 0, 0 }
+};
+//add by wangzhaofeng
+static struct usb_epinfo dmB_epinfos[] = {
+	{ LIBUSB_TRANSFER_TYPE_BULK,	64,	EPI(3), 0, 0 },
+	{ LIBUSB_TRANSFER_TYPE_BULK,	64,	EPO(4), 0, 0 }
+};
+
+static struct usb_intinfo dm_ints[] = {
+	USB_EPS(0, dmA_epinfos),
+	USB_EPS(1, dmB_epinfos)
+};
+
+static struct usb_epinfo cp2105A_epinfos[] = {
+        { LIBUSB_TRANSFER_TYPE_BULK,    64,     EPI(1), 0, 0 },
+        { LIBUSB_TRANSFER_TYPE_BULK,    64,     EPO(1), 0, 0 }
+};
+static struct usb_epinfo cp2105B_epinfos[] = {
+        { LIBUSB_TRANSFER_TYPE_BULK,    32,     EPI(2), 0, 0 },
+        { LIBUSB_TRANSFER_TYPE_BULK,    32,     EPO(2), 0, 0 }
+};
+
+static struct usb_intinfo cp2105_ints[] = {
+        USB_EPS(0, cp2105A_epinfos),
+        USB_EPS(1, cp2105B_epinfos)
+};
+#endif
+
 #ifdef USE_ICARUS
 static struct usb_epinfo ica_epinfos[] = {
 	{ LIBUSB_TRANSFER_TYPE_BULK,	64,	EPI(3), 0, 0 },
@@ -443,6 +480,30 @@ static struct usb_intinfo lke_ints_ftdi[] = {
 };
 #endif
 
+#ifdef USE_DUALMINER
+	{
+		.drv = DRIVER_dualminer,
+		.name = "DM",
+		.ident = IDENT_DM,
+		.idVendor = IDVENDOR_FTDI,
+		.idProduct = 0x6010,
+		.iProduct = "Dual RS232-HS",
+		.config = 1,
+		.timeout = DUALMINER_TIMEOUT_MS,
+		.latency = LATENCY_STD,
+		INTINFO(dm_ints) },
+ 	{
+                .drv = DRIVER_dualminer,
+                .name = "DM",
+                .ident = IDENT_CP,
+                .idVendor = 0x10c4,
+                .idProduct = 0xea70,
+                .iProduct = "CP2105 Dual USB to UART Bridge Controller",
+                .config = 1,
+                .timeout = CP210X_TIMEOUT_MS,
+                .latency = LATENCY_STD,
+                INTINFO(cp2105_ints) },
+#endif
 
 #define IDVENDOR_FTDI 0x0403
 
