@@ -694,17 +694,6 @@ static struct usb_find_devices find_dev[] = {
 		.timeout = DUALMINER_TIMEOUT_MS,
 		.latency = LATENCY_STD,
 		INTINFO(dm_ints) },
- 	{
-                .drv = DRIVER_dualminer,
-                .name = "DM",
-                .ident = IDENT_CP,
-                .idVendor = 0x10c4,
-                .idProduct = 0xea70,
-                .iProduct = "CP2105 Dual USB to UART Bridge Controller",
-                .config = 1,
-                .timeout = CP210X_TIMEOUT_MS,
-                .latency = LATENCY_STD,
-                INTINFO(cp2105_ints) },
 #endif
 
 #ifdef USE_ICARUS
