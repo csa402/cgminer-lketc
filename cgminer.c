@@ -112,7 +112,7 @@ char *curly = ":D";
 #include "driver-lketc.h"
 #endif
 
-#ifdef USE_LKETC
+#ifdef USE_DUALMINER
 #include "driver-dualminer.h"
 #endif
 
@@ -1857,7 +1857,10 @@ static char *opt_verusage_and_exit(const char *extra)
 		"Zeus "
 #endif
 #ifdef USE_LKETC
-                "Lketc "
+        "Lketc "
+#endif
+#ifdef USE_DUALMINER
+		"Dualminer "
 #endif
 
 #ifdef USE_SCRYPT
