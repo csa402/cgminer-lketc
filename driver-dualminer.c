@@ -186,7 +186,6 @@ static const char *MODE_VALUE_STR = "value";
 static const char *MODE_UNKNOWN_STR = "unknown";
 
 struct DUALMINER_INFO {
-	enum sub_ident ident;
 	int intinfo;
 
 	// time to calculate the golden_ob
@@ -204,8 +203,6 @@ struct DUALMINER_INFO {
 	int read_time;
 	// ms limit for (short=/long=) read_time
 	int read_time_limit;
-	// How long without hashes is considered a failed device
-	int fail_time;
 
 	enum timing_mode timing_mode;
 	bool do_dualminer_timing;
@@ -223,88 +220,31 @@ struct DUALMINER_INFO {
 
 	// dualminer-options
 	int baud;
-	int work_division;
-	int fpga_count;
+	int asics_count;
+	bool keepwork;
+	int matrix_m;
+	int matrix_n;
 	uint32_t nonce_mask;
 
-	uint8_t cmr2_speed;
-	bool speed_next_work;
-	bool flash_next_work;
-
-	int nonce_size;
-
-	bool failing;
-};
-
-#define DUALMINER_MIDSTATE_SIZE 32
-#define DUALMINER_UNUSED_SIZE 16
-#define DUALMINER_WORK_SIZE 12
-
-#define DUALMINER_WORK_DATA_OFFSET 64
-
-#define DUALMINER_CMR2_SPEED_FACTOR 2.5
-#define DUALMINER_CMR2_SPEED_MIN_INT 100
-#define DUALMINER_CMR2_SPEED_DEF_INT 180
-#define DUALMINER_CMR2_SPEED_MAX_INT 220
-#define CMR2_INT_TO_SPEED(_speed) ((uint8_t)((float)_speed / DUALMINER_CMR2_SPEED_FACTOR))
-#define DUALMINER_CMR2_SPEED_MIN CMR2_INT_TO_SPEED(DUALMINER_CMR2_SPEED_MIN_INT)
-#define DUALMINER_CMR2_SPEED_DEF CMR2_INT_TO_SPEED(DUALMINER_CMR2_SPEED_DEF_INT)
-#define DUALMINER_CMR2_SPEED_MAX CMR2_INT_TO_SPEED(DUALMINER_CMR2_SPEED_MAX_INT)
-#define DUALMINER_CMR2_SPEED_INC 1
-#define DUALMINER_CMR2_SPEED_DEC -1
-#define DUALMINER_CMR2_SPEED_FAIL -10
-
-#define DUALMINER_CMR2_PREFIX ((uint8_t)0xB7)
-#define DUALMINER_CMR2_CMD_SPEED ((uint8_t)0)
-#define DUALMINER_CMR2_CMD_FLASH ((uint8_t)1)
-#define DUALMINER_CMR2_DATA_FLASH_OFF ((uint8_t)0)
-#define DUALMINER_CMR2_DATA_FLASH_ON ((uint8_t)1)
-#define DUALMINER_CMR2_CHECK ((uint8_t)0x6D)
-
-struct DUALMINER_WORK {
-	uint8_t midstate[DUALMINER_MIDSTATE_SIZE];
-	// These 4 bytes are for CMR2 bitstreams that handle MHz adjustment
-	uint8_t check;
-	uint8_t data;
-	uint8_t cmd;
-	uint8_t prefix;
-	uint8_t unused[DUALMINER_UNUSED_SIZE];
-	uint8_t work[DUALMINER_WORK_SIZE];
+	bool initialised;
 };
 
 #define END_CONDITION 0x0000ffff
 
-// Looking for options in --dualminer-timing and --dualminer-options:
-//
-// Code increments this each time we start to look at a device
-// However, this means that if other devices are checked by
-// the Icarus code (e.g. Avalon only as at 20130517)
-// they will count in the option offset
-//
-// This, however, is deterministic so that's OK
-//
-// If we were to increment after successfully finding an Icarus
-// that would be random since an Icarus may fail and thus we'd
-// not be able to predict the option order
-//
-// Devices are checked in the order libusb finds them which is ?
-//
 static int option_offset = -1;
+static int opt_btc_number = 160;
+static int opt_pll_freq = 400;
 
-/*
-#define ICA_BUFSIZ (0x200)
-
-static void transfer_read(struct cgpu_info *dualminer, uint8_t request_type, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, char *buf, int bufsiz, int *amount, enum usb_cmds cmd)
+static void _transfer(struct cgpu_info *dualminer, uint8_t request_type, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint32_t *data, int siz, enum usb_cmds cmd)
 {
 	int err;
 
-	err = usb_transfer_read(dualminer, request_type, bRequest, wValue, wIndex, buf, bufsiz, amount, cmd);
+	err = usb_transfer_data(dualminer, request_type, bRequest, wValue, wIndex, data, siz, cmd);
 
 	applog(LOG_DEBUG, "%s: cgid %d %s got err %d",
 			dualminer->drv->name, dualminer->cgminer_id,
 			usb_cmdname(cmd), err);
 }
-*/
 
 static void _transfer(struct cgpu_info *dualminer, uint8_t request_type, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint32_t *data, int siz, enum usb_cmds cmd)
 {
@@ -827,212 +767,135 @@ static void get_options(int this_option_offset, struct cgpu_info *dualminer, int
 
 unsigned char crc5(unsigned char *ptr, unsigned char len)
 {
-	unsigned char i, j, k;
-	unsigned char crc = 0x1f;
-
-	unsigned char crcin[5] = {1, 1, 1, 1, 1};
-	unsigned char crcout[5] = {1, 1, 1, 1, 1};
-	unsigned char din = 0;
-
-	j = 0x80;
-	k = 0;
-	for (i = 0; i < len; i++) {
-		if (*ptr & j)
-			din = 1;
-		else
-			din = 0;
-		crcout[0] = crcin[4] ^ din;
-		crcout[1] = crcin[0];
-		crcout[2] = crcin[1] ^ crcin[4] ^ din;
-		crcout[3] = crcin[2];
-		crcout[4] = crcin[3];
-
-		j = j >> 1;
-		k++;
-		if (k == 8) {
-			j = 0x80;
-			k = 0;
-			ptr++;
+	int ok_count = 0;
+	int i, amount, err, ret;
+	char *nonce_hex;
+	char *temp;
+	unsigned char nonce_bin[DUALMINER_READ_SIZE];
+	unsigned char ob_bin[160];
+	struct timeval tv_start, tv_finish;
+	for(i = 0; i < 0xf; i++)
+	{
+		if(is_ltc)
+		{
+			ltc_golden[5] = (i > 9 ? (0x61 + i - 10): (0x30 + i));
 		}
-		memcpy(crcin, crcout, 5);
+		else
+		{
+			btc_golden[5] = (i > 9 ? (0x61 + i - 10) : (0x30 + i));
+		}
+		hex2bin(ob_bin, (is_ltc ? ltc_golden : btc_golden), sizeof(ob_bin));
+		if(!dualminer_write(dualminer, ob_bin, (is_ltc ? 152 : 52), is_ltc))
+		{
+			continue;	
+		}
+		memset(nonce_bin, 0, sizeof(nonce_bin));
+		usleep(1000);
+		ret = dualminer_get_nonce(dualminer, nonce_bin, &tv_start, &tv_finish, NULL, 100, is_ltc);
+		if (ret != DM_NONCE_OK)
+			continue;
+		rev(nonce_bin, 4);
+	
+		nonce_hex = bin2hex(nonce_bin, sizeof(nonce_bin));
+		if (strncmp(nonce_hex, (is_ltc ? ltc_golden_nonce : btc_golden_nonce), 8) == 0)
+		{
+			ok_count++;
+			applog(LOG_ERR, "Dualminer Detect %s: Test Success at %s: get %s, should: %s", (is_ltc ? "LTC" : "BTC"), dualminer->device_path, nonce_hex, (is_ltc ? ltc_golden_nonce : btc_golden_nonce));
+		}
+		else
+		{
+			applog(LOG_ERR, "DualMiner Detect %s: Test failed at %s: get %s, should: %s", (is_ltc ? "LTC" : "BTC"), dualminer->device_path, nonce_hex,  (is_ltc ? ltc_golden_nonce : btc_golden_nonce));
+		}
+		free(nonce_hex);
+		usleep(1000);
 	}
-	crc = 0;
-	if(crcin[4])
-		crc |= 0x10;
-	if(crcin[3])
-		crc |= 0x08;
-	if(crcin[2])
-		crc |= 0x04;
-	if(crcin[1])
-		crc |= 0x02;
-	if(crcin[0])
-		crc |= 0x01;
-	return crc;
+	return ok_count;
 }
 
-
-
-static struct cgpu_info *dualminer_detect_one(struct libusb_device *dev, struct usb_find_devices *found)
+static bool dualminer_detect_one(struct libusb_device *dev, struct usb_find_devices *found)
 {
 	int this_option_offset = ++option_offset;
 	struct DUALMINER_INFO *info;
 	struct timeval tv_start, tv_finish;
 
-	// Block 171874 nonce = (0xa2870100) = 0x000187a2
-	// N.B. golden_ob MUST take less time to calculate
-	//	than the timeout set in dualminer_open()
-	//	This one takes ~0.53ms on Rev3 Icarus
-	const char golden_ob[] =
-		"55aa1f00000000000000000000000000"
-		"000000000000000000000000aaaaaaaa"
-		"711c0000603ebdb6e35b05223c54f815"
-		"5ac33123006b4192e7aafafbeb9ef654"
-		"4d2973d700000002069b9f9e3ce8a677"
-		"8dea3d7a00926cd6eaa9585502c9b83a"
-		"5601f198d7fbf09be9559d6335ebad36"
-		"3e4f147a8d9934006963030b4e54c408"
-		"c837ebc2eeac129852a55fee1b1d88f6"
-		"000c050000000600";
-
-	const char golden_nonce[] = "000187a2";
-	const uint32_t golden_nonce_val = 0x00050cdd;
-	unsigned char nonce_bin[DUALMINER_READ_SIZE];
-	struct DUALMINER_WORK workdata;
-	char *nonce_hex;
-	int baud, uninitialised_var(work_division), uninitialised_var(fpga_count);
+	int asics_count;
+	int baud, tries;
 	struct cgpu_info *dualminer;
-	int ret, err, amount, tries, i;
+	enum sub_ident ident;
 	bool ok;
-	bool cmr2_ok[CAIRNSMORE2_INTS];
-	bool anu_freqset = false;
-	int cmr2_count;
-
-	if ((sizeof(workdata) << 1) != (sizeof(golden_ob) - 1))
-		quithere(1, "Data and golden_ob sizes don't match");
-
+	baud = DUALMINER_IO_SPEED;
 	dualminer = usb_alloc_cgpu(&dualminer_drv, 1);
 
 	if (!usb_init(dualminer, dev, found))
 		goto shin;
-
-	get_options(this_option_offset, dualminer, &baud, &work_division, &fpga_count);
-
-	hex2bin((void *)(&workdata), golden_ob, sizeof(workdata));
-
+	usb_buffer_enable(dualminer);
+	
 	info = (struct DUALMINER_INFO *)calloc(1, sizeof(struct DUALMINER_INFO));
 	if (unlikely(!info))
 		quit(1, "Failed to malloc DUALMINER_INFO");
 	dualminer->device_data = (void *)info;
-
-	info->ident = usb_ident(dualminer);
-	switch (info->ident) {
+	ident = usb_ident(dualminer);
+	switch (ident) {
 		case IDENT_DM:
-		break;
+		case IDENT_CP:
+			info->timeout = DUALMINER_READ_TIMEOUT;
+			info->keepwork = false;
+			break;
 		default:
 			quit(1, "%s dualminer_detect_one() invalid %s ident=%d",
-				dualminer->drv->dname, dualminer->drv->dname, info->ident);
+				dualminer->drv->dname, dualminer->drv->dname, ident);
 	}
 
-	info->nonce_size = DUALMINER_READ_SIZE;
-// For CMR2 test each USB Interface
-
-cmr2_retry:
-
-	tries = 2;
+	dualminer_initialise(dualminer, baud);
+	dualminer->cgpu_err_accumulation=0;
+	tries = 1;
 	ok = false;
-	while (!ok && tries-- > 0) {
-		dualminer_initialise(dualminer, baud);
-
-		if (info->ident == IDENT_ANU && !set_anu_freq(dualminer, info)) {
-			applog(LOG_WARNING, "%s %i: Failed to set frequency, too much overclock?",
-			       dualminer->drv->name, dualminer->device_id);
-			continue;
+	while (!ok && tries-- > 0) 
+	{
+		asics_count = dualminer_detect_asics(dualminer, (opt_scrypt ? true : false));
+		if(asics_count >= 1)
+		{
+			ok = true;
+			if(asics_count == 8 || asics_count == 5 || asics_count == 1)
+			{
+				info->keepwork = true;
+			}
 		}
+	}
 
-		err = usb_write_ii(dualminer, info->intinfo,
-				   (char *)(&workdata), sizeof(workdata), &amount, C_SENDWORK);
-
-		if (err != LIBUSB_SUCCESS || amount != sizeof(workdata))
-			continue;
-
-		memset(nonce_bin, 0, sizeof(nonce_bin));
-		ret = dualminer_get_nonce(dualminer, nonce_bin, &tv_start, &tv_finish, NULL, 100);
-		if (ret != ICA_NONCE_OK)
-			continue;
-
-		if (info->nonce_size == DUALMINER_READ_SIZE && usb_buffer_size(dualminer) == 1) {
-			usb_buffer_clear(dualminer);
-			dualminer->usbdev->ident = info->ident = IDENT_ANU;
-			info->nonce_size = ANT_READ_SIZE;
-			info->Hs = ANTMINERUSB_HASH_TIME;
-			dualminer->drv->name = "ANU";
-			applog(LOG_DEBUG, "%s %i: Detected Antminer U1, changing nonce size to %d",
-			       dualminer->drv->name, dualminer->device_id, ANT_READ_SIZE);
-		}
-
-		nonce_hex = bin2hex(nonce_bin, sizeof(nonce_bin));
-		if (strncmp(nonce_hex, golden_nonce, 8) == 0) {
-			if (info->ident == IDENT_ANU && !anu_freqset)
-				anu_freqset = true;
+	if (!ok) 
+	{
+		if(!opt_scrypt)
+			dualminer_send_cmds(dualminer, btc_close_nonce_unit, FTDI_INTERFACE_A);
+		goto unshin;
+	} 
+	else 
+	{
+		if(!opt_scrypt)
+		{
+			dualminer_send_cmds(dualminer, btc_close_nonce_unit, FTDI_INTERFACE_A);
+			if(opt_dualminer_btc != -1)
+			{
+				dualminer_open_btc_unit(dualminer, opt_dualminer_btc);
+			}
 			else
-				ok = true;
-		} else {
-			if (tries < 0 && info->ident != IDENT_CMR2) {
-				applog(LOG_ERR,
-					"Icarus Detect: "
-					"Test failed at %s: get %s, should: %s",
-					dualminer->device_path, nonce_hex, golden_nonce);
+			{
+				if(dualminer_get_cts(dualminer) == 0)
+				{
+					dualminer_open_btc_unit(dualminer, DEFAULT_0_9V_BTC);
+				}
+				else
+				{
+					dualminer_open_btc_unit(dualminer, DEFAULT_1_2V_BTC);
+				}
 			}
 		}
-		free(nonce_hex);
+		dualminer_set_rts_status(dualminer, RTS_HIGH);
 	}
 
-	if (!ok) {
-		if (info->ident != IDENT_CMR2)
-			goto unshin;
+	applog(LOG_DEBUG,"dualminer Detect: Test succeeded at %s: got %s", dualminer->device_path, btc_golden_nonce);
 
-		if (info->intinfo < CAIRNSMORE2_INTS-1) {
-			info->intinfo++;
-			goto cmr2_retry;
-		}
-	} else {
-		if (info->ident == IDENT_CMR2) {
-			applog(LOG_DEBUG,
-				"Icarus Detect: "
-				"Test succeeded at %s i%d: got %s",
-					dualminer->device_path, info->intinfo, golden_nonce);
-
-			cmr2_ok[info->intinfo] = true;
-			cmr2_count++;
-			if (info->intinfo < CAIRNSMORE2_INTS-1) {
-				info->intinfo++;
-				goto cmr2_retry;
-			}
-		}
-	}
-
-	if (info->ident == IDENT_CMR2) {
-		if (cmr2_count == 0) {
-			applog(LOG_ERR,
-				"Icarus Detect: Test failed at %s: for all %d CMR2 Interfaces",
-				dualminer->device_path, CAIRNSMORE2_INTS);
-			goto unshin;
-		}
-
-		// set the interface to the first one that succeeded
-		for (i = 0; i < CAIRNSMORE2_INTS; i++)
-			if (cmr2_ok[i]) {
-				info->intinfo = i;
-				break;
-			}
-	} else {
-		applog(LOG_DEBUG,
-			"Icarus Detect: "
-			"Test succeeded at %s: got %s",
-				dualminer->device_path, golden_nonce);
-	}
-
-	/* We have a real Icarus! */
+	/* We have a real dualminer! */
 	if (!add_cgpu(dualminer))
 		goto unshin;
 
@@ -1041,73 +904,20 @@ cmr2_retry:
 	applog(LOG_INFO, "%s%d: Found at %s",
 		dualminer->drv->name, dualminer->device_id, dualminer->device_path);
 
-	if (info->ident == IDENT_CMR2) {
-		applog(LOG_INFO, "%s%d: with %d Interface%s",
-				dualminer->drv->name, dualminer->device_id,
-				cmr2_count, cmr2_count > 1 ? "s" : "");
-
-		// Assume 1 or 2 are running FPGA pairs
-		if (cmr2_count < 3) {
-			work_division = fpga_count = 2;
-			info->Hs /= 2;
-		}
-	}
-
-	applog(LOG_DEBUG, "%s%d: Init baud=%d work_division=%d fpga_count=%d",
-		dualminer->drv->name, dualminer->device_id, baud, work_division, fpga_count);
+	applog(LOG_DEBUG, "%s%d: Init baud=%d asics_count=%d",
+	dualminer->drv->name, dualminer->device_id, baud, asics_count);
 
 	info->baud = baud;
-	info->work_division = work_division;
-	info->fpga_count = fpga_count;
-	info->nonce_mask = mask(work_division);
-
-	info->golden_hashes = (golden_nonce_val & info->nonce_mask) * fpga_count;
+	info->asics_count = asics_count;
+	info->nonce_mask = mask(asics_count);
+	info->matrix_n = asics_count;
+	info->matrix_m = 1;
 	timersub(&tv_finish, &tv_start, &(info->golden_tv));
 
-	set_timing_mode(this_option_offset, dualminer);
-	
-	if (info->ident == IDENT_CMR2) {
-		int i;
-		for (i = info->intinfo + 1; i < dualminer->usbdev->found->intinfo_count; i++) {
-			struct cgpu_info *cgtmp;
-			struct DUALMINER_INFO *intmp;
+	if(opt_scrypt) info->golden_hashes = (double)((50000) * (double)opt_pll_freq) / 600;
+	else info->golden_hashes = ((double)opt_btc_number * 1000000000 /160) * (double)opt_pll_freq / 400;
 
-			if (!cmr2_ok[i])
-				continue;
-
-			cgtmp = usb_copy_cgpu(dualminer);
-			if (!cgtmp) {
-				applog(LOG_ERR, "%s%d: Init failed initinfo %d",
-						dualminer->drv->name, dualminer->device_id, i);
-				continue;
-			}
-
-			cgtmp->usbinfo.usbstat = USB_NOSTAT;
-
-			intmp = (struct DUALMINER_INFO *)malloc(sizeof(struct DUALMINER_INFO));
-			if (unlikely(!intmp))
-				quit(1, "Failed2 to malloc DUALMINER_INFO");
-
-			cgtmp->device_data = (void *)intmp;
-
-			// Initialise everything to match
-			memcpy(intmp, info, sizeof(struct DUALMINER_INFO));
-
-			intmp->intinfo = i;
-
-			dualminer_initialise(cgtmp, baud);
-
-			if (!add_cgpu(cgtmp)) {
-				usb_uninit(cgtmp);
-				free(intmp);
-				continue;
-			}
-
-			update_usb_stats(cgtmp);
-		}
-	}
-
-	return dualminer;
+	return true;
 
 unshin:
 
@@ -1119,76 +929,86 @@ shin:
 
 	dualminer = usb_free_cgpu(dualminer);
 
-	return NULL;
+	return false;
 }
 
-static void dualminer_detect(bool __maybe_unused hotplug)
+
+
+
+static int dualmine_send_task(struct cgpu_info *dualminer, struct work *work, bool is_ltc)
 {
-	usb_detect(&dualminer_drv, dualminer_detect_one);
-}
-
-static bool dualminer_prepare(__maybe_unused struct thr_info *thr)
-{
-//	struct cgpu_info *dualminer = thr->cgpu;
-
-	return true;
-}
-
-static void cmr2_command(struct cgpu_info *dualminer, uint8_t cmd, uint8_t data)
-{
-	struct DUALMINER_INFO *info = (struct DUALMINER_INFO *)(dualminer->device_data);
-	struct DUALMINER_WORK workdata;
-	int amount;
-
-	memset((void *)(&workdata), 0, sizeof(workdata));
-
-	workdata.prefix = DUALMINER_CMR2_PREFIX;
-	workdata.cmd = cmd;
-	workdata.data = data;
-	workdata.check = workdata.data ^ workdata.cmd ^ workdata.prefix ^ DUALMINER_CMR2_CHECK;
-
-	usb_write_ii(dualminer, info->intinfo, (char *)(&workdata), sizeof(workdata), &amount, C_SENDWORK);
-}
-
-static void cmr2_commands(struct cgpu_info *dualminer)
-{
-	struct DUALMINER_INFO *info = (struct DUALMINER_INFO *)(dualminer->device_data);
-
-	if (info->speed_next_work) {
-		info->speed_next_work = false;
-		cmr2_command(dualminer, DUALMINER_CMR2_CMD_SPEED, info->cmr2_speed);
-		return;
+	struct DUALMINER_INFO *info;
+	unsigned char ob_bin[64], btc_bin[52], ltc_bin[160];
+	info = (struct DUALMINER_INFO *)dualminer->device_data;
+	if(is_ltc)
+	{
+		if(!opt_dualminer_interface)
+		{
+        	dualminer_send_cmds(dualminer, ltc_init, 1);
+		}
+		else
+		{
+			dualminer_send_cmds(dualminer, ltc_restart, 0);
+			usleep(10 * 1000);
+		}
+		if(info->matrix_n == 1)
+		{
+			memset(ltc_bin, 0, sizeof(ltc_bin));
+			memcpy(ltc_bin, "\x55\xaa\x1f\x00", 4);
+			memcpy(ltc_bin + 4, work->target, 32);
+			memcpy(ltc_bin + 36, work->midstate, 32);
+			memcpy(ltc_bin + 68, work->data, 80);
+			memcpy(ltc_bin + 148, "\xff\xff\xff\xff", 4);
+			dualminer_write(dualminer, (char *)(ltc_bin), 152, true);
+			usleep(10 * 1000);
+		}
+		else if(info->matrix_n > 1)
+		{
+			memset(ltc_bin, 0, sizeof(ltc_bin));
+			memcpy(ltc_bin, "\x55\xaa\x1f\x00", 4);
+			memcpy(ltc_bin + 4, work->target, 32);
+			memcpy(ltc_bin + 36, work->midstate, 32);
+			dualminer_write(dualminer, (char *)(ltc_bin), 152 - 8 - 76, true);   	
+			usleep(10 * 1000);
+			memset(ltc_bin, 0, sizeof(ltc_bin));
+			memcpy(ltc_bin, "\x55\xaa\x1f\x10", 4);
+			memcpy(ltc_bin + 4, work->data, 76);
+			dualminer_write(dualminer, (char *)(ltc_bin), 152 - 8 - 64, true);
+			usleep(10 * 1000);
+			dualminer_set_noce_range(dualminer, true, info->matrix_m, info->matrix_n);
+		}
+		else
+		{
+		}
 	}
-
-	if (info->flash_next_work) {
-		info->flash_next_work = false;
-		cmr2_command(dualminer, DUALMINER_CMR2_CMD_FLASH, DUALMINER_CMR2_DATA_FLASH_ON);
-		cgsleep_ms(250);
-		cmr2_command(dualminer, DUALMINER_CMR2_CMD_FLASH, DUALMINER_CMR2_DATA_FLASH_OFF);
-		cgsleep_ms(250);
-		cmr2_command(dualminer, DUALMINER_CMR2_CMD_FLASH, DUALMINER_CMR2_DATA_FLASH_ON);
-		cgsleep_ms(250);
-		cmr2_command(dualminer, DUALMINER_CMR2_CMD_FLASH, DUALMINER_CMR2_DATA_FLASH_OFF);
-		return;
+	else
+	{
+		memset(ob_bin, 0, sizeof(ob_bin));
+		memcpy(ob_bin, work->midstate, 32);
+		memcpy(ob_bin + 52, work->data + 64, 12);
+		memset(btc_bin, 0, sizeof(btc_bin));
+		memcpy(btc_bin, "\x55\xaa\x1f\x00", 4);
+		memcpy(btc_bin + 8, ob_bin, 32);
+		memcpy(btc_bin + 40, ob_bin + 52, 12);
 	}
 }
-
-static int64_t dualminer_scanwork(struct thr_info *thr)
+static int64_t dualminer_scanhash(struct thr_info *thr, struct work *work,
+				__maybe_unused int64_t max_nonce)
 {
 	struct cgpu_info *dualminer = thr->cgpu;
 	struct DUALMINER_INFO *info = (struct DUALMINER_INFO *)(dualminer->device_data);
 	int ret, err, amount;
-	unsigned char nonce_bin[DUALMINER_BUF_SIZE];
-	struct DUALMINER_WORK workdata;
+	unsigned char nonce_bin[DUALMINER_READ_SIZE];
 	char *ob_hex;
 	uint32_t nonce;
-	int64_t hash_count = 0;
+	int64_t hash_count, hash_count_done = 0;
 	struct timeval tv_start, tv_finish, elapsed;
 	struct timeval tv_history_start, tv_history_finish;
+	struct timeval loop_start, loop_finish, loop_elapsed;
+	struct timeval diff, diff_start, diff_finish;
 	double Ti, Xi;
 	int curr_hw_errors, i;
 	bool was_hw_error;
-	struct work *work;
 
 	struct DUALMINER_HISTORY *history0, *history;
 	int count;
@@ -1198,233 +1018,97 @@ static int64_t dualminer_scanwork(struct thr_info *thr)
 	int64_t estimate_hashes;
 	uint32_t values;
 	int64_t hash_count_range;
-
-	if (unlikely(share_work_tdiff(dualminer) > info->fail_time)) {
-		if (info->failing) {
-			if (share_work_tdiff(dualminer) > info->fail_time + 60) {
-				applog(LOG_ERR, "%s %d: Device failed to respond to restart",
-				       dualminer->drv->name, dualminer->device_id);
-				usb_nodev(dualminer);
-				return -1;
-			}
-		} else {
-			applog(LOG_WARNING, "%s %d: No valid hashes for over %d secs, attempting to reset",
-			       dualminer->drv->name, dualminer->device_id, info->fail_time);
-			usb_reset(dualminer);
-			info->failing = true;
-		}
-	}
-
+	
+//	info->matrix_m = total_devices;	
 	// Device is gone
 	if (dualminer->usbinfo.nodev)
 		return -1;
 
-	elapsed.tv_sec = elapsed.tv_usec = 0;
-
-	work = get_work(thr, thr->id);
-	memset((void *)(&workdata), 0, sizeof(workdata));
-	memcpy(&(workdata.midstate), work->midstate, DUALMINER_MIDSTATE_SIZE);
-	memcpy(&(workdata.work), work->data + DUALMINER_WORK_DATA_OFFSET, DUALMINER_WORK_SIZE);
-	rev((void *)(&(workdata.midstate)), DUALMINER_MIDSTATE_SIZE);
-	rev((void *)(&(workdata.work)), DUALMINER_WORK_SIZE);
-
-	if (info->speed_next_work || info->flash_next_work)
-		cmr2_commands(dualminer);
-
-	// We only want results for the work we are about to send
-	usb_buffer_clear(dualminer);
-
-	err = usb_write_ii(dualminer, info->intinfo, (char *)(&workdata), sizeof(workdata), &amount, C_SENDWORK);
-	if (err < 0 || amount != sizeof(workdata)) {
-		applog(LOG_ERR, "%s%i: Comms error (werr=%d amt=%d)",
-				dualminer->drv->name, dualminer->device_id, err, amount);
-		dev_error(dualminer, REASON_DEV_COMMS_ERROR);
+	if (!info->initialised)
 		dualminer_initialise(dualminer, info->baud);
-		goto out;
+
+	elapsed.tv_sec = elapsed.tv_usec = 0;
+	dualmine_send_task(dualminer, work, opt_scrypt);
+	/* dualminer will return 4 bytes (DUALMINER_READ_SIZE) nonces or nothing */
+	if (opt_debug)
+	{
+		applog(LOG_ERR, " ==> %s%d: loop_elapsed.tv_sec = %d, thr = %x, !thr->work_restart = %x, info->keepwork = %x  <==",
+        		dualminer->drv->name, dualminer->device_id, loop_elapsed.tv_sec, thr, !thr->work_restart, info->keepwork);
 	}
+	cgtime(&loop_start);
+	cgtime(&diff_start);
+	do
+	{
+	/* dualminer will return 4 bytes (DUALMINER_READ_SIZE) nonces or nothing */
+		memset(nonce_bin, 0, sizeof(nonce_bin));
+		ret = dualminer_get_nonce(dualminer, nonce_bin, &tv_start, &tv_finish, thr, (opt_scrypt ? 5000: 1600), opt_scrypt);
+		if (ret == DM_NONCE_ERROR)
+			return 0;
+		rev(nonce_bin, 4);
+		work->blk.nonce = 0xffffffff;
 
-	if (opt_debug) {
-		ob_hex = bin2hex((void *)(&workdata), sizeof(workdata));
-		applog(LOG_DEBUG, "%s%d: sent %s",
-			dualminer->drv->name, dualminer->device_id, ob_hex);
-		free(ob_hex);
-	}
-
-	/* Icarus will return 4 bytes (DUALMINER_READ_SIZE) nonces or nothing */
-	memset(nonce_bin, 0, sizeof(nonce_bin));
-	ret = dualminer_get_nonce(dualminer, nonce_bin, &tv_start, &tv_finish, thr, info->read_time);
-	if (ret == ICA_NONCE_ERROR)
-		goto out;
-
-	// aborted before becoming idle, get new work
-	if (ret == ICA_NONCE_TIMEOUT || ret == ICA_NONCE_RESTART) {
 		timersub(&tv_finish, &tv_start, &elapsed);
 
-		// ONLY up to just when it aborted
-		// We didn't read a reply so we don't subtract DUALMINER_READ_TIME
-		estimate_hashes = ((double)(elapsed.tv_sec)
-					+ ((double)(elapsed.tv_usec))/((double)1000000)) / info->Hs;
+		// aborted before becoming idle, get new work
+		if (ret == DM_NONCE_TIMEOUT || ret == DM_NONCE_RESTART) {
+		
+			// ONLY up to just when it aborted
+			// We didn't read a reply so we don't subtract DUALMINER_READ_TIME
+			estimate_hashes = ((double)(elapsed.tv_sec) + ((double)(elapsed.tv_usec)) / ((double)1000000)) / DUALMINER_SCRYPT_HASH_TIME; 
+			// If some Serial-USB delay allowed the full nonce range to
+			// complete it can't have done more than a full nonce
+			if (unlikely(estimate_hashes > 0xffffffff))
+				estimate_hashes = 0xffffffff;
 
-		// If some Serial-USB delay allowed the full nonce range to
-		// complete it can't have done more than a full nonce
-		if (unlikely(estimate_hashes > 0xffffffff))
-			estimate_hashes = 0xffffffff;
-
-		applog(LOG_DEBUG, "%s%d: no nonce = 0x%08lX hashes (%ld.%06lds)",
+			applog(LOG_DEBUG, "%s%d: no nonce = 0x%08lX hashes (%ld.%06lds)",
 				dualminer->drv->name, dualminer->device_id,
 				(long unsigned int)estimate_hashes,
-				(long)elapsed.tv_sec, (long)elapsed.tv_usec);
+				elapsed.tv_sec, elapsed.tv_usec);
+			hash_count_done += estimate_hashes;
+			goto oversubmit;
+		}
 
-		hash_count = estimate_hashes;
-		goto out;
-	}
-
-	memcpy((char *)&nonce, nonce_bin, DUALMINER_READ_SIZE);
-	nonce = htobe32(nonce);
-	curr_hw_errors = dualminer->hw_errors;
-	if (submit_nonce(thr, work, nonce))
-		info->failing = false;
-	was_hw_error = (curr_hw_errors < dualminer->hw_errors);
-
-	if (was_hw_error)
-		hash_count = 0;
-	else {
-		hash_count = (nonce & info->nonce_mask);
-		hash_count++;
-		hash_count *= info->fpga_count;
-	}
-
-#if 0
-	// This appears to only return zero nonce values
-	if (usb_buffer_size(dualminer) > 3) {
-		memcpy((char *)&nonce, dualminer->usbdev->buffer, sizeof(nonce_bin));
+		memcpy((char *)&nonce, nonce_bin, sizeof(nonce_bin));
 		nonce = htobe32(nonce);
-		applog(LOG_WARNING, "%s%d: attempting to submit 2nd nonce = 0x%08lX",
-				dualminer->drv->name, dualminer->device_id,
-				(long unsigned int)nonce);
 		curr_hw_errors = dualminer->hw_errors;
 		submit_nonce(thr, work, nonce);
-		was_hw_error = (curr_hw_errors > dualminer->hw_errors);
-	}
-#endif
-
-	if (opt_debug || info->do_dualminer_timing)
-		timersub(&tv_finish, &tv_start, &elapsed);
-
-	applog(LOG_DEBUG, "%s%d: nonce = 0x%08x = 0x%08lX hashes (%ld.%06lds)",
-			dualminer->drv->name, dualminer->device_id,
-			nonce, (long unsigned int)hash_count,
-			(long)elapsed.tv_sec, (long)elapsed.tv_usec);
-
-	// Ignore possible end condition values ... and hw errors
-	// TODO: set limitations on calculated values depending on the device
-	// to avoid crap values caused by CPU/Task Switching/Swapping/etc
-	if (info->do_dualminer_timing
-	&&  !was_hw_error
-	&&  ((nonce & info->nonce_mask) > END_CONDITION)
-	&&  ((nonce & info->nonce_mask) < (info->nonce_mask & ~END_CONDITION))) {
-		cgtime(&tv_history_start);
-
-		history0 = &(info->history[0]);
-
-		if (history0->values == 0)
-			timeradd(&tv_start, &history_sec, &(history0->finish));
-
-		Ti = (double)(elapsed.tv_sec)
-			+ ((double)(elapsed.tv_usec))/((double)1000000)
-			- ((double)DUALMINER_READ_TIME(info->baud));
-		Xi = (double)hash_count;
-		history0->sumXiTi += Xi * Ti;
-		history0->sumXi += Xi;
-		history0->sumTi += Ti;
-		history0->sumXi2 += Xi * Xi;
-
-		history0->values++;
-
-		if (history0->hash_count_max < hash_count)
-			history0->hash_count_max = hash_count;
-		if (history0->hash_count_min > hash_count || history0->hash_count_min == 0)
-			history0->hash_count_min = hash_count;
-
-		if (history0->values >= info->min_data_count
-		&&  timercmp(&tv_start, &(history0->finish), >)) {
-			for (i = INFO_HISTORY; i > 0; i--)
-				memcpy(&(info->history[i]),
-					&(info->history[i-1]),
-					sizeof(struct DUALMINER_HISTORY));
-
-			// Initialise history0 to zero for summary calculation
-			memset(history0, 0, sizeof(struct DUALMINER_HISTORY));
-
-			// We just completed a history data set
-			// So now recalc read_time based on the whole history thus we will
-			// initially get more accurate until it completes INFO_HISTORY
-			// total data sets
-			count = 0;
-			for (i = 1 ; i <= INFO_HISTORY; i++) {
-				history = &(info->history[i]);
-				if (history->values >= MIN_DATA_COUNT) {
-					count++;
-
-					history0->sumXiTi += history->sumXiTi;
-					history0->sumXi += history->sumXi;
-					history0->sumTi += history->sumTi;
-					history0->sumXi2 += history->sumXi2;
-					history0->values += history->values;
-
-					if (history0->hash_count_max < history->hash_count_max)
-						history0->hash_count_max = history->hash_count_max;
-					if (history0->hash_count_min > history->hash_count_min || history0->hash_count_min == 0)
-						history0->hash_count_min = history->hash_count_min;
-				}
-			}
-
-			// All history data
-			Hs = (history0->values*history0->sumXiTi - history0->sumXi*history0->sumTi)
-				/ (history0->values*history0->sumXi2 - history0->sumXi*history0->sumXi);
-			W = history0->sumTi/history0->values - Hs*history0->sumXi/history0->values;
-			hash_count_range = history0->hash_count_max - history0->hash_count_min;
-			values = history0->values;
-			
-			// Initialise history0 to zero for next data set
-			memset(history0, 0, sizeof(struct DUALMINER_HISTORY));
-
-			fullnonce = W + Hs * (((double)0xffffffff) + 1);
-			read_time = SECTOMS(fullnonce) - DUALMINER_READ_REDUCE;
-			if (info->read_time_limit > 0 && read_time > info->read_time_limit) {
-				read_time = info->read_time_limit;
-				limited = true;
-			} else
-				limited = false;
-
-			info->Hs = Hs;
-			info->read_time = read_time;
-
-			info->fullnonce = fullnonce;
-			info->count = count;
-			info->W = W;
-			info->values = values;
-			info->hash_count_range = hash_count_range;
-
-			if (info->min_data_count < MAX_MIN_DATA_COUNT)
-				info->min_data_count *= 2;
-			else if (info->timing_mode == MODE_SHORT)
-				info->do_dualminer_timing = false;
-
-			applog(LOG_WARNING, "%s%d Re-estimate: Hs=%e W=%e read_time=%dms%s fullnonce=%.3fs",
-					dualminer->drv->name, dualminer->device_id, Hs, W, read_time,
-					limited ? " (limited)" : "", fullnonce);
+		was_hw_error = (curr_hw_errors < dualminer->hw_errors);
+		if (!was_hw_error)
+		{
+			//do_dualminer_close(thr);
+			hash_count = opt_scrypt ? nonce & info->nonce_mask : ((double)(((double)nonce)*opt_btc_number)/160);
+//			info->golden_hashes=(double)hash_count/((double)(elapsed.tv_sec) + ((double)(elapsed.tv_usec))/((double)1000000));	
+			applog(LOG_DEBUG, "dualminer hashcount = %d, hashrate=%d, opt_btc_number=%d", hash_count, info->golden_hashes, opt_btc_number);
+		
 		}
-		info->history_count++;
-		cgtime(&tv_history_finish);
+		else
+		{
+			hash_count = ((double)(elapsed.tv_sec) + ((double)(elapsed.tv_usec))/((double)1000000)) / DUALMINER_SCRYPT_HASH_TIME;
+		}
+		hash_count *= info->asics_count;
+		hash_count_done += hash_count;
+oversubmit:
+		cgtime(&diff_finish);
+		timersub(&diff_finish, &diff_start, &diff);
+		if ((hash_count && (diff.tv_sec > 0 || diff.tv_usec > 200000 || diff.tv_sec >= opt_log_interval))) 
+		{
+			hashmeter(thr->id, &diff, hash_count_done);
+			hash_count_done = 0;
+			diff.tv_sec = 0;
+			diff.tv_usec = 0;
+			cgtime(&diff_start);
+		}
 
-		timersub(&tv_history_finish, &tv_history_start, &tv_history_finish);
-		timeradd(&tv_history_finish, &(info->history_time), &(info->history_time));
+		cgtime(&loop_finish);
+		timersub(&loop_finish, &loop_start, &loop_elapsed);
 	}
-out:
-	free_work(work);
-
-	return hash_count;
+	while((thr && !thr->work_restart) && info->keepwork && loop_elapsed.tv_sec < 60);
+	if (opt_debug)
+	{
+		applog(LOG_ERR, " ==> %s%d: loop_elapsed.tv_sec = %d, thr = %x, !thr->work_restart = %x, info->keepwork = %x  <==",
+                        dualminer->drv->name, dualminer->device_id, loop_elapsed.tv_sec, thr, !thr->work_restart, info->keepwork);
+	}
+	return 0;
 }
 
 static struct api_data *dualminer_api_stats(struct cgpu_info *cgpu)
@@ -1451,84 +1135,18 @@ static struct api_data *dualminer_api_stats(struct cgpu_info *cgpu)
 	root = api_add_const(root, "timing_mode", timing_mode_str(info->timing_mode), false);
 	root = api_add_bool(root, "is_timing", &(info->do_dualminer_timing), false);
 	root = api_add_int(root, "baud", &(info->baud), false);
-	root = api_add_int(root, "work_division", &(info->work_division), false);
-	root = api_add_int(root, "fpga_count", &(info->fpga_count), false);
 
 	return root;
 }
 
-static void dualminer_statline_before(char *buf, size_t bufsiz, struct cgpu_info *cgpu)
-{
-	struct DUALMINER_INFO *info = (struct DUALMINER_INFO *)(cgpu->device_data);
-
-	if (info->ident == IDENT_CMR2 && info->cmr2_speed > 0)
-		tailsprintf(buf, bufsiz, "%5.1fMhz", (float)(info->cmr2_speed) * DUALMINER_CMR2_SPEED_FACTOR);
-}
-
-static void dualminer_shutdown(__maybe_unused struct thr_info *thr)
-{
-	// TODO: ?
-}
-
-static void dualminer_identify(struct cgpu_info *cgpu)
-{
-	struct DUALMINER_INFO *info = (struct DUALMINER_INFO *)(cgpu->device_data);
-
-	if (info->ident == IDENT_CMR2)
-		info->flash_next_work = true;
-}
-
-static char *dualminer_set(struct cgpu_info *cgpu, char *option, char *setting, char *replybuf)
-{
-	struct DUALMINER_INFO *info = (struct DUALMINER_INFO *)(cgpu->device_data);
-	int val;
-
-	if (info->ident != IDENT_CMR2) {
-		strcpy(replybuf, "no set options available");
-		return replybuf;
-	}
-
-	if (strcasecmp(option, "help") == 0) {
-		sprintf(replybuf, "clock: range %d-%d",
-				  DUALMINER_CMR2_SPEED_MIN_INT, DUALMINER_CMR2_SPEED_MAX_INT);
-		return replybuf;
-	}
-
-	if (strcasecmp(option, "clock") == 0) {
-		if (!setting || !*setting) {
-			sprintf(replybuf, "missing clock setting");
-			return replybuf;
-		}
-
-		val = atoi(setting);
-		if (val < DUALMINER_CMR2_SPEED_MIN_INT || val > DUALMINER_CMR2_SPEED_MAX_INT) {
-			sprintf(replybuf, "invalid clock: '%s' valid range %d-%d",
-					  setting,
-					  DUALMINER_CMR2_SPEED_MIN_INT,
-					  DUALMINER_CMR2_SPEED_MAX_INT);
-		}
-
-		info->cmr2_speed = CMR2_INT_TO_SPEED(val);
-		info->speed_next_work = true;
-
-		return NULL;
-	}
-
-	sprintf(replybuf, "Unknown option: %s", option);
-	return replybuf;
-}
 
 struct device_drv dualminer_drv = {
 	.drv_id = DRIVER_dualminer,
-	.dname = "Dualminer",
+	.dname = "DualMiner",
 	.name = "DM",
 	.drv_detect = dualminer_detect,
-	.hash_work = &hash_driver_work,
 	.get_api_stats = dualminer_api_stats,
-	.get_statline_before = dualminer_statline_before,
-	.set_device = dualminer_set,
-	.identify_device = dualminer_identify,
 	.thread_prepare = dualminer_prepare,
-	.scanwork = dualminer_scanwork,
+	.scanhash = dualminer_scanhash,
 	.thread_shutdown = dualminer_shutdown,
 };
