@@ -1644,6 +1644,61 @@ static struct opt_table opt_config_table[] = {
 	OPT_ENDTABLE
 };
 
+
+#ifdef USE_DUALMINER
+static char *set_dualminer_pll(const char *arg)
+{
+	int freq = 0;
+	freq = atoi(arg);
+	
+	if(freq < 400 || freq > 850)
+	{
+	    opt_dualminer_pll = (freq < 400 ) ? 400 : 850;
+	}
+	else
+	{
+		opt_dualminer_pll = ((freq / 50) * 50);
+	}
+
+	return NULL;
+}
+
+static char *set_dualminer_btc(const char *arg)
+{
+	int btc = 0;
+	btc = atoi(arg);
+	
+	if(btc < 0 || btc > 160)
+	{
+	    opt_dualminer_btc = (btc < 0 ) ? 0 : 160;
+	}
+	else
+	{
+		opt_dualminer_btc = btc;
+	}
+
+	return NULL;
+}
+
+//add by wangzhaofeng
+static char *set_dualminer_interface(const char *arg)
+{
+	int interface = 0;
+	interface = atoi(arg);
+	
+	if(interface == 1)
+	{
+	    opt_dualminer_interface = 1;
+	}
+	else
+	{
+	    opt_dualminer_interface = 0;
+	}
+
+	return NULL;
+}
+#endif
+
 static char *load_config(const char *arg, void __maybe_unused *unused);
 
 static int fileconf_load;
