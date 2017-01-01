@@ -47,7 +47,7 @@ The following three examples are equivalent assuming two miners are connected:
 		--scan-serial /dev/ttyUSB1 --scan-serial /dev/ttyUSB2
 	
 	# Direct serial I/O, auto-detect ports (Linux only)
-	./cgminer --scrypt --lektc-clock 280 --scan-serial lketc:auto
+	./cgminer --scrypt --lketc-clock 280 --scan-serial lketc:auto
 
 Exemple If you use Lketc and a Gaw Fury :
 
