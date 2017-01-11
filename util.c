@@ -134,8 +134,8 @@ static size_t all_data_cb(const void *ptr, size_t size, size_t nmemb,
 
 	db->buf = newmem;
 	db->len = newlen;
-	cg_memcpy(db->buf + oldlen, ptr, len);
-	cg_memcpy(db->buf + newlen, &zero, 1);	/* null terminate */
+	memcpy(db->buf + oldlen, ptr, len);
+	memcpy(db->buf + newlen, &zero, 1);	/* null terminate */
 
 	return len;
 }
@@ -150,7 +150,7 @@ static size_t upload_data_cb(void *ptr, size_t size, size_t nmemb,
 		len = ub->len;
 
 	if (len) {
-		cg_memcpy(ptr, ub->buf, len);
+		memcpy(ptr, ub->buf, len);
 		ub->buf += len;
 		ub->len -= len;
 	}
@@ -176,7 +176,7 @@ static size_t resp_hdr_cb(void *ptr, size_t size, size_t nmemb, void *user_data)
 	slen = tmp - ptr;
 	if ((slen + 1) == ptrlen)	/* skip key w/ no value */
 		goto out;
-	cg_memcpy(key, ptr, slen);		/* store & nul term key */
+	memcpy(key, ptr, slen);		/* store & nul term key */
 	key[slen] = 0;
 
 	rem = ptr + slen + 1;		/* trim value's leading whitespace */
@@ -186,7 +186,7 @@ static size_t resp_hdr_cb(void *ptr, size_t size, size_t nmemb, void *user_data)
 		rem++;
 	}
 
-	cg_memcpy(val, rem, remlen);	/* store value, trim trailing ws */
+	memcpy(val, rem, remlen);	/* store value, trim trailing ws */
 	val[remlen] = 0;
 	while ((*val) && (isspace(val[strlen(val) - 1])))
 		val[strlen(val) - 1] = 0;
@@ -818,7 +818,7 @@ void address_to_pubkeyhash(unsigned char *pkh, const char *addr)
 	pkh[0] = 0x76;
 	pkh[1] = 0xa9;
 	pkh[2] = 0x14;
-	cg_memcpy(&pkh[3], &b58bin[1], 20);
+	memcpy(&pkh[3], &b58bin[1], 20);
 	pkh[23] = 0x88;
 	pkh[24] = 0xac;
 }
@@ -853,14 +853,14 @@ unsigned char *ser_string(char *s, int *slen)
 		quit(1, "Failed to malloc ret in ser_string");
 	if (len < 253) {
 		ret[0] = len;
-		cg_memcpy(ret + 1, s, len);
+		memcpy(ret + 1, s, len);
 		*slen = len + 1;
 	} else if (len < 0x10000) {
 		uint16_t *u16 = (uint16_t *)&ret[1];
 
 		ret[0] = 253;
 		*u16 = htobe16(len);
-		cg_memcpy(ret + 3, s, len);
+		memcpy(ret + 3, s, len);
 		*slen = len + 3;
 	} else {
 		/* size_t is only 32 bit on many platforms anyway */
@@ -868,7 +868,7 @@ unsigned char *ser_string(char *s, int *slen)
 
 		ret[0] = 254;
 		*u32 = htobe32(len);
-		cg_memcpy(ret + 5, s, len);
+		memcpy(ret + 5, s, len);
 		*slen = len + 5;
 	}
 	return ret;
@@ -1065,7 +1065,7 @@ bool time_less(struct timeval *a, struct timeval *b)
 
 void copy_time(struct timeval *dest, const struct timeval *src)
 {
-	cg_memcpy(dest, src, sizeof(struct timeval));
+	memcpy(dest, src, sizeof(struct timeval));
 }
 
 void timespec_to_val(struct timeval *val, const struct timespec *spec)
@@ -1828,9 +1828,9 @@ static bool parse_notify(struct pool *pool, json_t *val)
 	pool->coinbase = calloc(alloc_len, 1);
 	if (unlikely(!pool->coinbase))
 		quit(1, "Failed to calloc pool coinbase in parse_notify");
-	cg_memcpy(pool->coinbase, cb1, cb1_len);
-	cg_memcpy(pool->coinbase + cb1_len, pool->nonce1bin, pool->n1_len);
-	cg_memcpy(pool->coinbase + cb1_len + pool->n1_len + pool->n2size, cb2, cb2_len);
+	memcpy(pool->coinbase, cb1, cb1_len);
+	memcpy(pool->coinbase + cb1_len, pool->nonce1bin, pool->n1_len);
+	memcpy(pool->coinbase + cb1_len + pool->n1_len + pool->n2size, cb2, cb2_len);
 	if (opt_debug) {
 		char *cb = bin2hex(pool->coinbase, pool->coinbase_len);
 
@@ -2325,7 +2325,7 @@ static bool socks5_negotiate(struct pool *pool, int sockd)
 		len = 255;
 	uclen = len;
 	buf[4] = (uclen & 0xff);
-	cg_memcpy(buf + 5, pool->sockaddr_url, len);
+	memcpy(buf + 5, pool->sockaddr_url, len);
 	port = atoi(pool->stratum_port);
 	buf[5 + len] = (port >> 8);
 	buf[6 + len] = (port & 0xff);
@@ -2415,7 +2415,7 @@ static bool socks4_negotiate(struct pool *pool, int sockd, bool socks4a)
 		len = strlen(pool->sockaddr_url);
 		if (len > 255)
 			len = 255;
-		cg_memcpy(&buf[16], pool->sockaddr_url, len);
+		memcpy(&buf[16], pool->sockaddr_url, len);
 		len += 16;
 		buf[len++] = '\0';
 		send(sockd, buf, len, 0);
@@ -3139,5 +3139,5 @@ void _cg_memcpy(void *dest, const void *src, unsigned int n, const char *file, c
 			      n, file, func, line);
 		return;
 	}
-	cg_memcpy(dest, src, n);
+	memcpy(dest, src, n);
 }

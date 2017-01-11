@@ -1943,7 +1943,7 @@ static void calc_midstate(struct work *work)
 	flip64(data32, work->data);
 	sha256_init(&ctx);
 	sha256_update(&ctx, data, 64);
-	cg_memcpy(work->midstate, ctx.h, 32);
+	memcpy(work->midstate, ctx.h, 32);
 	endian_flip32(work->midstate, work->midstate);
 }
 
@@ -2015,11 +2015,11 @@ static void __gbt_merkleroot(struct pool *pool, unsigned char *merkle_root)
 	int i;
 
 	gen_hash(pool->coinbase, merkle_root, pool->coinbase_len);
-	cg_memcpy(merkle_sha, merkle_root, 32);
+	memcpy(merkle_sha, merkle_root, 32);
 	for (i = 0; i < pool->merkles; i++) {
-		cg_memcpy(merkle_sha + 32, pool->merklebin + i * 32, 32);
+		memcpy(merkle_sha + 32, pool->merklebin + i * 32, 32);
 		gen_hash(merkle_sha, merkle_root, 64);
-		cg_memcpy(merkle_sha, merkle_root, 32);
+		memcpy(merkle_sha, merkle_root, 32);
 	}
 }
 
@@ -2075,17 +2075,17 @@ static void gen_gbt_work(struct pool *pool, struct work *work)
 
 	cg_wlock(&pool->gbt_lock);
 	nonce2le = htole64(pool->nonce2);
-	cg_memcpy(pool->coinbase + pool->nonce2_offset, &nonce2le, pool->n2size);
+	memcpy(pool->coinbase + pool->nonce2_offset, &nonce2le, pool->n2size);
 	pool->nonce2++;
 	cg_dwlock(&pool->gbt_lock);
 	__gbt_merkleroot(pool, merkleroot);
 
-	cg_memcpy(work->data, &pool->gbt_version, 4);
-	cg_memcpy(work->data + 4, pool->previousblockhash, 32);
-	cg_memcpy(work->data + 4 + 32 + 32, &pool->curtime, 4);
-	cg_memcpy(work->data + 4 + 32 + 32 + 4, &pool->gbt_bits, 4);
+	memcpy(work->data, &pool->gbt_version, 4);
+	memcpy(work->data + 4, pool->previousblockhash, 32);
+	memcpy(work->data + 4 + 32 + 32, &pool->curtime, 4);
+	memcpy(work->data + 4 + 32 + 32 + 4, &pool->gbt_bits, 4);
 
-	cg_memcpy(work->target, pool->gbt_target, 32);
+	memcpy(work->target, pool->gbt_target, 32);
 
 	work->coinbase = bin2hex(pool->coinbase, pool->coinbase_len);
 
@@ -2286,7 +2286,7 @@ static void gbt_merkle_bins(struct pool *pool, json_t *transaction_arr)
 			hash = json_string_value(json_object_get(arr_val, "hash"));
 			txn = json_string_value(json_object_get(arr_val, "data"));
 			len = strlen(txn);
-			cg_memcpy(pool->txn_data + ofs, txn, len);
+			memcpy(pool->txn_data + ofs, txn, len);
 			ofs += len;
 			if (!hash) {
 				unsigned char *txn_bin;
@@ -2313,10 +2313,10 @@ static void gbt_merkle_bins(struct pool *pool, json_t *transaction_arr)
 		while (42) {
 			if (binleft == 1)
 				break;
-			cg_memcpy(pool->merklebin + (pool->merkles * 32), hashbin + 32, 32);
+			memcpy(pool->merklebin + (pool->merkles * 32), hashbin + 32, 32);
 			pool->merkles++;
 			if (binleft % 2) {
-				cg_memcpy(hashbin + binlen, hashbin + binlen - 32, 32);
+				memcpy(hashbin + binlen, hashbin + binlen - 32, 32);
 				binlen += 32;
 				binleft++;
 			}
@@ -2428,7 +2428,7 @@ static bool gbt_solo_decode(struct pool *pool, json_t *res_val)
 	*u32 = htole32(now.tv_usec);
 	ofs += 4; // sizeof uint32_t
 
-	cg_memcpy(pool->scriptsig_base + ofs, "\x09\x63\x67\x6d\x69\x6e\x65\x72\x34\x32", 10);
+	memcpy(pool->scriptsig_base + ofs, "\x09\x63\x67\x6d\x69\x6e\x65\x72\x34\x32", 10);
 	ofs += 10;
 
 	/* Followed by extranonce size, fixed at 8 */
@@ -2441,7 +2441,7 @@ static bool gbt_solo_decode(struct pool *pool, json_t *res_val)
 		if (len > 32)
 			len = 32;
 		pool->scriptsig_base[ofs++] = len;
-		cg_memcpy(pool->scriptsig_base + ofs, opt_btc_sig, len);
+		memcpy(pool->scriptsig_base + ofs, opt_btc_sig, len);
 		ofs += len;
 	}
 
@@ -2460,8 +2460,8 @@ static bool gbt_solo_decode(struct pool *pool, json_t *res_val)
 	if (unlikely(!pool->coinbase))
 		quit(1, "Failed to calloc coinbase in gbt_solo_decode");
 
-	cg_memcpy(pool->coinbase + 41, pool->scriptsig_base, ofs);
-	cg_memcpy(pool->coinbase + 41 + ofs, "\xff\xff\xff\xff", 4);
+	memcpy(pool->coinbase + 41, pool->scriptsig_base, ofs);
+	memcpy(pool->coinbase + 41 + ofs, "\xff\xff\xff\xff", 4);
 	pool->coinbase[41 + ofs + 4] = 1;
 	u64 = (uint64_t *)&(pool->coinbase[41 + ofs + 4 + 1]);
 	*u64 = htole64(coinbasevalue);
@@ -2836,7 +2836,7 @@ static void curses_print_devstatus(struct cgpu_info *cgpu, int devno, int count)
 			uid_width = MIN(strlen(cgpu->unique_id), 12);	// maximum length 12
 
 		unique_id[4] = '\0';
-		cg_memcpy(unique_id, blanks, 4);				// minimum length 4
+		memcpy(unique_id, blanks, 4);				// minimum length 4
 		strncpy(unique_id, cgpu->unique_id, uid_width);
 		unique_id[uid_width] = '\0';
 	} else {
@@ -3165,9 +3165,9 @@ share_result(json_t *val, json_t *res, json_t *err, const struct work *work,
 				if (reasonLen > 28)
 					reasonLen = 28;
 				reason[0] = ' '; reason[1] = '(';
-				cg_memcpy(2 + reason, reasontmp, reasonLen);
+				memcpy(2 + reason, reasontmp, reasonLen);
 				reason[reasonLen + 2] = ')'; reason[reasonLen + 3] = '\0';
-				cg_memcpy(disposition + 7, reasontmp, reasonLen);
+				memcpy(disposition + 7, reasontmp, reasonLen);
 				disposition[6] = ':'; disposition[reasonLen + 7] = '\0';
 			} else if (work->stratum && err && json_is_array(err)) {
 				json_t *reason_val = json_array_get(err, 1);
@@ -3366,10 +3366,10 @@ static bool submit_upstream_work(struct work *work, CURL *curl, bool resubmit)
 
 			time_t tmp_time = work->tv_getwork.tv_sec;
 			tm = localtime(&tmp_time);
-			cg_memcpy(&tm_getwork, tm, sizeof(struct tm));
+			memcpy(&tm_getwork, tm, sizeof(struct tm));
 			tmp_time = tv_submit_reply.tv_sec;
 			tm = localtime(&tmp_time);
-			cg_memcpy(&tm_submit_reply, tm, sizeof(struct tm));
+			memcpy(&tm_submit_reply, tm, sizeof(struct tm));
 
 			if (work->clone) {
 				snprintf(workclone, sizeof(workclone), "C:%1.3f",
@@ -3684,7 +3684,7 @@ static unsigned char bench_target[32];
 static void get_benchmark_work(struct work *work)
 {
 	work->work_difficulty = 32;
-	cg_memcpy(work->target, bench_target, 32);
+	memcpy(work->target, bench_target, 32);
 	work->drv_rolllimit = 0;
 	work->mandatory = true;
 	work->pool = pools[0];
@@ -4312,7 +4312,7 @@ static void _copy_work(struct work *work, const struct work *base_work, int noff
 	uint32_t id = work->id;
 
 	clean_work(work);
-	cg_memcpy(work, base_work, sizeof(struct work));
+	memcpy(work, base_work, sizeof(struct work));
 	/* Keep the unique new id assigned during make_work to prevent copied
 	 * work from having the same id. */
 	work->id = id;
@@ -4766,7 +4766,7 @@ static void set_curblock(char *hexstr, unsigned char *bedata)
 	cg_wlock(&ch_lock);
 	cgtime(&block_timeval);
 	strcpy(current_hash, hexstr);
-	cg_memcpy(current_block, bedata, 32);
+	memcpy(current_block, bedata, 32);
 	get_timestamp(blocktime, sizeof(blocktime), &block_timeval);
 	cg_wunlock(&ch_lock);
 
@@ -4874,7 +4874,7 @@ static bool test_work_current(struct work *work)
 		set_curblock(hexstr, bedata);
 		/* Copy the information to this pool's prev_block since it
 		 * knows the new block exists. */
-		cg_memcpy(pool->prev_block, bedata, 32);
+		memcpy(pool->prev_block, bedata, 32);
 		if (unlikely(new_blocks == 1)) {
 			ret = false;
 			goto out;
@@ -4909,7 +4909,7 @@ static bool test_work_current(struct work *work)
 				/* Work is from new block and pool is up now
 				 * current. */
 				applog(LOG_INFO, "Pool %d now up to date", pool->pool_no);
-				cg_memcpy(pool->prev_block, bedata, 32);
+				memcpy(pool->prev_block, bedata, 32);
 			}
 		}
 #if 0
@@ -6585,9 +6585,9 @@ static bool stratum_works(struct pool *pool)
 static void __setup_gbt_solo(struct pool *pool)
 {
 	cg_wlock(&pool->gbt_lock);
-	cg_memcpy(pool->coinbase, scriptsig_header_bin, 41);
+	memcpy(pool->coinbase, scriptsig_header_bin, 41);
 	pool->coinbase[41 + pool->n1_len + 4 + 1 + 8] = 25;
-	cg_memcpy(pool->coinbase + 41 + pool->n1_len + 4 + 1 + 8 + 1, pool->script_pubkey, 25);
+	memcpy(pool->coinbase + 41 + pool->n1_len + 4 + 1 + 8 + 1, pool->script_pubkey, 25);
 	cg_wunlock(&pool->gbt_lock);
 }
 
@@ -6993,7 +6993,7 @@ void set_target(unsigned char *dest_target, double diff)
 		applog(LOG_DEBUG, "Generated target %s", htarget);
 		free(htarget);
 	}
-	cg_memcpy(dest_target, target, 32);
+	memcpy(dest_target, target, 32);
 }
 
 #ifdef USE_AVALON2
@@ -7028,7 +7028,7 @@ static void gen_stratum_work(struct pool *pool, struct work *work)
 	/* Update coinbase. Always use an LE encoded nonce2 to fill in values
 	 * from left to right and prevent overflow errors with small n2sizes */
 	nonce2le = htole64(pool->nonce2);
-	cg_memcpy(pool->coinbase + pool->nonce2_offset, &nonce2le, pool->n2size);
+	memcpy(pool->coinbase + pool->nonce2_offset, &nonce2le, pool->n2size);
 	work->nonce2 = pool->nonce2++;
 	work->nonce2_len = pool->n2size;
 
@@ -7037,19 +7037,19 @@ static void gen_stratum_work(struct pool *pool, struct work *work)
 
 	/* Generate merkle root */
 	gen_hash(pool->coinbase, merkle_root, pool->coinbase_len);
-	cg_memcpy(merkle_sha, merkle_root, 32);
+	memcpy(merkle_sha, merkle_root, 32);
 	for (i = 0; i < pool->merkles; i++) {
-		cg_memcpy(merkle_sha + 32, pool->swork.merkle_bin[i], 32);
+		memcpy(merkle_sha + 32, pool->swork.merkle_bin[i], 32);
 		gen_hash(merkle_sha, merkle_root, 64);
-		cg_memcpy(merkle_sha, merkle_root, 32);
+		memcpy(merkle_sha, merkle_root, 32);
 	}
 	data32 = (uint32_t *)merkle_sha;
 	swap32 = (uint32_t *)merkle_root;
 	flip32(swap32, data32);
 
 	/* Copy the data template from header_bin */
-	cg_memcpy(work->data, pool->header_bin, 112);
-	cg_memcpy(work->data + 36, merkle_root, 32);
+	memcpy(work->data, pool->header_bin, 112);
+	memcpy(work->data + 36, merkle_root, 32);
 
 	/* Store the stratum work diff to check it still matches the pool's
 	 * stratum diff when submitting shares */
@@ -7169,7 +7169,7 @@ static void gen_solo_work(struct pool *pool, struct work *work)
 	/* Update coinbase. Always use an LE encoded nonce2 to fill in values
 	 * from left to right and prevent overflow errors with small n2sizes */
 	nonce2le = htole64(pool->nonce2);
-	cg_memcpy(pool->coinbase + pool->nonce2_offset, &nonce2le, pool->n2size);
+	memcpy(pool->coinbase + pool->nonce2_offset, &nonce2le, pool->n2size);
 	work->nonce2 = pool->nonce2++;
 	work->nonce2_len = pool->n2size;
 	work->gbt_txns = pool->transactions + 1;
@@ -7179,28 +7179,28 @@ static void gen_solo_work(struct pool *pool, struct work *work)
 	work->coinbase = bin2hex(pool->coinbase, pool->coinbase_len);
 	/* Generate merkle root */
 	gen_hash(pool->coinbase, merkle_root, pool->coinbase_len);
-	cg_memcpy(merkle_sha, merkle_root, 32);
+	memcpy(merkle_sha, merkle_root, 32);
 	for (i = 0; i < pool->merkles; i++) {
 		unsigned char *merkle_bin;
 
 		merkle_bin = pool->merklebin + (i * 32);
-		cg_memcpy(merkle_sha + 32, merkle_bin, 32);
+		memcpy(merkle_sha + 32, merkle_bin, 32);
 		gen_hash(merkle_sha, merkle_root, 64);
-		cg_memcpy(merkle_sha, merkle_root, 32);
+		memcpy(merkle_sha, merkle_root, 32);
 	}
 	data32 = (uint32_t *)merkle_sha;
 	swap32 = (uint32_t *)merkle_root;
 	flip32(swap32, data32);
 
 	/* Copy the data template from header_bin */
-	cg_memcpy(work->data, pool->header_bin, 112);
-	cg_memcpy(work->data + 36, merkle_root, 32);
+	memcpy(work->data, pool->header_bin, 112);
+	memcpy(work->data + 36, merkle_root, 32);
 
 	work->sdiff = pool->sdiff;
 
 	/* Copy parameters required for share submission */
 	work->ntime = strdup(pool->ntime);
-	cg_memcpy(work->target, pool->gbt_target, 32);
+	memcpy(work->target, pool->gbt_target, 32);
 	cg_runlock(&pool->gbt_lock);
 
 	if (opt_debug) {
@@ -7249,9 +7249,9 @@ static void set_benchmark_work(struct cgpu_info *cgpu, struct work *work)
 		cgpu->direction = -1;
 		if (++cgpu->hidiff > 15)
 			cgpu->hidiff = 0;
-		cg_memcpy(work, &bench_hidiff_bins[cgpu->hidiff][0], 160);
+		memcpy(work, &bench_hidiff_bins[cgpu->hidiff][0], 160);
 	} else
-		cg_memcpy(work, &bench_lodiff_bins[cgpu->lodiff][0], 160);
+		memcpy(work, &bench_lodiff_bins[cgpu->lodiff][0], 160);
 }
 
 struct work *get_work(struct thr_info *thr, const int thr_id)
@@ -9207,7 +9207,7 @@ bool add_cgpu(struct cgpu_info *cgpu)
 		cgpu->device_id = ++d->lastid;
 	else {
 		d = malloc(sizeof(*d));
-		cg_memcpy(d->name, cgpu->drv->name, sizeof(d->name));
+		memcpy(d->name, cgpu->drv->name, sizeof(d->name));
 		cgpu->device_id = d->lastid = 0;
 		HASH_ADD_STR(devids, name, d);
 	}
@@ -9242,7 +9242,7 @@ struct device_drv *copy_drv(struct device_drv *drv)
 		quit(1, "Failed to allocate device_drv copy of %s (%s)",
 				drv->name, drv->copy ? "copy" : "original");
 	}
-	cg_memcpy(copy, drv, sizeof(*copy));
+	memcpy(copy, drv, sizeof(*copy));
 	copy->copy = true;
 	return copy;
 }
