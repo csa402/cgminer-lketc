@@ -2736,8 +2736,6 @@ resend:
 
 	cg_wlock(&pool->data_lock);
 	tmp = pool->sessionid;
-	free(pool->nonce1);
-	free(pool->sessionid);
 	pool->sessionid = sessionid;
 	free(tmp);
 	tmp = pool->nonce1;
