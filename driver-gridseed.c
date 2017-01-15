@@ -890,7 +890,7 @@ static void set_freq_cmd(GRIDSEED_INFO *info, int pll_r, int pll_f, int pll_od)
 		(pll_f << 21) | (pll_od << 28) | (pll_bs << 31);
 	info->freq = (int)ceil(f_out);
 	memcpy(info->cmd_freq, "\x55\xaa\xef\x00", 4);
-	//*(uint32_t *)(info->cmd_freq + 4) = htole32(cmdf);
+	// *(uint32_t *)(info->cmd_freq + 4) = htole32(cmdf);
 	cmdf = htole32(cmdf);
 	memcpy(info->cmd_freq + 4, &cmdf, 4);
 
