@@ -21,7 +21,7 @@ to build this specific code:
 
 	sudo apt-get update
 	sudo apt-get install build-essential autoconf automake libtool pkg-config libcurl4-openssl-dev libudev-dev \
-	libjansson-dev libncurses5-dev	libudev-dev libjansson-dev
+	libjansson-dev libncurses5-dev
 	./autogen.sh
 	./configure --enable-scrypt --enable-lketc
 	make
