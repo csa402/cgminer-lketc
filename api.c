@@ -211,8 +211,8 @@ static const char *DEVICECODE = ""
 			"ZUS "
 #endif
 
-#ifdef USE_ZEUS
-            "LKE "
+#ifdef USE_LKETC
+            		"LKE "
 #endif
 			"";
 
