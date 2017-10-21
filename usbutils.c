@@ -2414,15 +2414,12 @@ bool usb_init(struct cgpu_info *cgpu, struct libusb_device *dev, struct usb_find
 		}
 	}
 
-	if (ret == USB_INIT_FAIL){
-		applog(LOG_ERR, "%s detect (%d:%d) failed to initialise (incorrect device?), resetting",
+	if (ret == USB_INIT_FAIL)
+		applog(LOG_ERR, "%s detect (%d:%d) failed to initialise (incorrect device?)",
 				cgpu->drv->dname,
 				(int)(cgpu->usbinfo.bus_number),
 				(int)(cgpu->usbinfo.device_address));
 
-		if (cgpu->usbdev && cgpu->usbdev->handle)
-  			libusb_reset_device(cgpu->usbdev->handle);
- 	}
 	return (ret == USB_INIT_OK);
 }
 
@@ -3090,19 +3087,18 @@ void usb_reset(struct cgpu_info *cgpu)
 {
 	int pstate, err = 0;
 
-	DEVWLOCK(cgpu, pstate);
+	DEVRLOCK(cgpu, pstate);
 	if (!cgpu->usbinfo.nodev) {
 		err = libusb_reset_device(cgpu->usbdev->handle);
 		applog(LOG_WARNING, "%s %i attempted reset got err:(%d) %s",
 			cgpu->drv->name, cgpu->device_id, err, libusb_error_name(err));
 	}
-	//if (NODEV(err)) {
-	//	cg_ruwlock(&cgpu->usbinfo.devlock);
-	if (NODEV(err))
+	if (NODEV(err)) {
+		cg_ruwlock(&cgpu->usbinfo.devlock);
 		release_cgpu(cgpu);
-	//	DEVWUNLOCK(cgpu, pstate);
-	//} else
-	//	DEVRUNLOCK(cgpu, pstate);
+		DEVWUNLOCK(cgpu, pstate);
+	} else
+		DEVRUNLOCK(cgpu, pstate);
 }
 
 int _usb_read(struct cgpu_info *cgpu, int intinfo, int epinfo, char *buf, size_t bufsiz,
@@ -3170,9 +3166,6 @@ int _usb_read(struct cgpu_info *cgpu, int intinfo, int epinfo, char *buf, size_t
 		err = usb_perform_transfer(cgpu, usbdev, intinfo, epinfo, ptr, usbbufread,
 					&got, timeout, MODE_BULK_READ, cmd,
 					first ? SEQ0 : SEQ1, cancellable, false);
-		if (NODEV(err))
- 			goto out_noerrmsg;
- 
 		cgtime(&tv_finish);
 		ptr[got] = '\0';
 
@@ -3208,10 +3201,6 @@ int _usb_read(struct cgpu_info *cgpu, int intinfo, int epinfo, char *buf, size_t
 		} else {
 			tried_reset = 0;
 		}
-
-		if (NODEV(err))
- 			goto out_noerrmsg;
- 
 		ptr += got;
 		bufleft -= got;
 		if (bufleft < 1)
@@ -3314,9 +3303,6 @@ int _usb_write(struct cgpu_info *cgpu, int intinfo, int epinfo, char *buf, size_
 		err = usb_perform_transfer(cgpu, usbdev, intinfo, epinfo, (unsigned char *)buf,
 					tosend, &sent, timeout, MODE_BULK_WRITE,
 					cmd, first ? SEQ0 : SEQ1, false, usbdev->tt);
-		if (NODEV(err))
- 			goto out_noerrmsg;
- 
 		cgtime(&tv_finish);
 
 		USBDEBUG("USB debug: @_usb_write(%s (nodev=%s)) err=%d%s sent=%d", cgpu->drv->name, bool_str(cgpu->usbinfo.nodev), err, isnodev(err), sent);

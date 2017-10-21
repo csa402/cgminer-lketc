@@ -112,7 +112,6 @@ char *curly = ":D";
 #include "driver-lketc.h"
 #endif
 
-
 #if defined(USE_BITFORCE) || defined(USE_ICARUS) || defined(USE_AVALON) || defined(USE_AVALON2) || defined(USE_MODMINER)
 #	define USE_FPGA
 #endif
@@ -169,8 +168,7 @@ const int opt_cutofftemp = 95;
 int opt_log_interval = 5;
 int opt_queue = -1;
 static int max_queue = 1;
-//int opt_scantime = -1;
-const int max_scantime = 60;
+int opt_scantime = -1;
 int opt_expiry = 120;
 static const bool opt_time = true;
 unsigned long long global_hashrate;
@@ -302,8 +300,6 @@ bool opt_usb_list_all;
 cgsem_t usb_resource_sem;
 static pthread_t usb_poll_thread;
 static bool usb_polling;
-static bool polling_usb;
-static bool usb_reinit;
 #endif
 
 char *opt_kernel_path;
@@ -384,7 +380,7 @@ static struct pool *currentpool = NULL;
 int total_pools, enabled_pools;
 enum pool_strategy pool_strategy = POOL_FAILOVER;
 int opt_rotate_period;
-static int total_urls, total_users, total_passes, total_userpasses, total_extranonce;
+static int total_urls, total_users, total_passes, total_userpasses;
 
 static
 #ifndef HAVE_CURSES
@@ -702,7 +698,7 @@ struct pool *add_pool(void)
 	pool->rpc_proxy = NULL;
 	pool->quota = 1;
 	adjust_quota_gcd();
-	pool->extranonce_subscribe = false;
+
 	return pool;
 }
 
@@ -848,8 +844,7 @@ static char *set_rr(enum pool_strategy *strategy)
  * stratum+tcp or by detecting a stratum server response */
 bool detect_stratum(struct pool *pool, char *url)
 {
-		bool ret = false;
-
+	check_extranonce_option(pool, url);
 	if (!extract_sockaddr(url, &pool->sockaddr_url, &pool->stratum_port))
 		return false;
 
@@ -857,19 +852,11 @@ bool detect_stratum(struct pool *pool, char *url)
 		pool->rpc_url = strdup(url);
 		pool->has_stratum = true;
 		pool->stratum_url = pool->sockaddr_url;
-		ret = true;
+		return true;
 	}
-//
-//	return false;
 
-out:
-	if (!ret) {
-		free(pool->sockaddr_url);
-		free(pool->stratum_port);
-		pool->stratum_port = pool->sockaddr_url = NULL;
-	}
-	return ret;
-  }
+	return false;
+}
 
 static struct pool *add_url(void)
 {
@@ -889,9 +876,9 @@ static void setup_url(struct pool *pool, char *arg)
 	opt_set_charp(arg, &pool->rpc_url);
 	if (strncmp(arg, "http://", 7) &&
 	    strncmp(arg, "https://", 8)) {
-		char httpinput[256];
+		char *httpinput;
 
-		//httpinput = malloc(256);
+		httpinput = malloc(256);
 		if (!httpinput)
 			quit(1, "Failed to malloc httpinput");
 		strcpy(httpinput, "stratum+tcp://");
@@ -905,10 +892,6 @@ static char *set_url(char *arg)
 	struct pool *pool = add_url();
 
 	setup_url(pool, arg);
-	if (strstr(pool->rpc_url, ".nicehash.com") || strstr(pool->rpc_url, "#xnsub")) {
- 		pool->extranonce_subscribe = true;
- 		applog(LOG_DEBUG, "Pool %d extranonce subscribing enabled.", pool->pool_no);
- 	}
 	return NULL;
 }
 
@@ -996,21 +979,6 @@ static char *set_userpass(const char *arg)
 
 	return NULL;
 }
-static char *set_extranonce_subscribe(char *arg)
-{
-	struct pool *pool;
-
-	total_extranonce++;
-	if (total_extranonce > total_pools)
-		add_pool();
-
-	pool = pools[total_extranonce - 1];
-	applog(LOG_DEBUG, "Enable extranonce subscribe on %d", pool->pool_no);
-	opt_set_bool(&pool->extranonce_subscribe);
-
-	return NULL;
-}
-
 
 static char *enable_debug(bool *flag)
 {
@@ -1345,9 +1313,6 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITH_ARG("--expiry|-E",
 		     set_int_0_to_9999, opt_show_intval, &opt_expiry,
 		     "Upper bound on how many seconds after getting work we consider a share from it stale"),
-	OPT_WITHOUT_ARG("--extranonce-subscribe",
-			set_extranonce_subscribe, NULL,
- 			"Enable 'extranonce' stratum subscribe"),
 	OPT_WITHOUT_ARG("--failover-only",
 			opt_set_bool, &opt_fail_only,
 			"Don't leak work to backup pools when primary pool is lagging"),
@@ -1523,10 +1488,8 @@ static struct opt_table opt_config_table[] = {
 		     "Serial port to probe for Serial FPGA Mining device"),
 #endif
 	OPT_WITH_ARG("--scan-time|-s",
-	//	     set_int_0_to_9999, opt_show_intval, &opt_scantime,
-	//	     "Upper bound on time spent scanning current work, in seconds"),
-			set_null, NULL, &opt_set_null,
-			     opt_hidden),
+		     set_int_0_to_9999, opt_show_intval, &opt_scantime,
+		     "Upper bound on time spent scanning current work, in seconds"),
 	OPT_WITH_CBARG("--sched-start",
 		     set_sched_start, NULL, &opt_set_sched_start,
 		     "Set a time of day in HH:MM to start mining (a once off without a stop time)"),
@@ -3488,7 +3451,7 @@ static bool pool_unworkable(struct pool *pool)
 		return true;
 	if (pool->enabled != POOL_ENABLED)
 		return true;
-	if (pool->has_stratum && (!pool->stratum_active || !pool->stratum_notify))
+	if (pool->has_stratum && !pool->stratum_active)
 		return true;
 	return false;
 }
@@ -4104,10 +4067,10 @@ static inline bool should_roll(struct work *work)
 	if (work->pool != current_pool() && pool_strategy != POOL_LOADBALANCE && pool_strategy != POOL_BALANCE)
 		return false;
 
-	if (work->rolltime > max_scantime)
+	if (work->rolltime > opt_scantime)
 		expiry = work->rolltime;
 	else
-		expiry = max_scantime;
+		expiry = opt_scantime;
 	expiry = expiry * 2 / 3;
 
 	/* We shouldn't roll if we're unlikely to get one shares' duration
@@ -4407,7 +4370,7 @@ static bool stale_work(struct work *work, bool share)
 	/* Technically the rolltime should be correct but some pools
 	 * advertise a broken expire= that is lower than a meaningful
 	 * scantime */
-	if (work->rolltime > max_scantime)
+	if (work->rolltime > opt_scantime)
 		work_expiry = work->rolltime;
 	else
 		work_expiry = opt_expiry;
@@ -4815,8 +4778,6 @@ static void set_blockdiff(const struct work *work)
 {
 	uint8_t pow = work->data[72];
 	int powdiff = (8 * (0x1d - 3)) - (8 * (pow - 3));
-	if (powdiff < 8)
- 		powdiff = 8;
 	uint32_t diff32 = be32toh(*((uint32_t *)(work->data + 72))) & 0x00FFFFFF;
 	double numerator = 0xFFFFULL << powdiff;
 	double ddiff = numerator / (double)diff32;
@@ -5122,8 +5083,6 @@ void write_config(FILE *fcfg)
 				pool->rpc_proxy ? "|" : "",
 				json_escape(pool->rpc_url));
 		}
-		if (pool->extranonce_subscribe)
- 		fputs("\n\t\t\"extranonce-subscribe\" : true,", fcfg);
 		fprintf(fcfg, "\n\t\t\"user\" : \"%s\",", json_escape(pool->rpc_user));
 		fprintf(fcfg, "\n\t\t\"pass\" : \"%s\"\n\t}", json_escape(pool->rpc_pass));
 		}
@@ -5607,9 +5566,9 @@ static void set_options(void)
 	immedok(logwin, true);
 	clear_logwin();
 retry:
-	wlogprint("[Q]ueue: %d\n[E]xpiry: %d\n"
+	wlogprint("[Q]ueue: %d\n[S]cantime: %d\n[E]xpiry: %d\n"
 		  "[W]rite config file\n[C]gminer restart\n",
-		opt_queue, opt_expiry);
+		opt_queue, opt_scantime, opt_expiry);
 	wlogprint("Select an option or any other key to return\n");
 	logwin_update();
 	input = getch();
@@ -5624,14 +5583,14 @@ retry:
 		if (opt_queue < max_queue)
 			max_queue = opt_queue;
 		goto retry;
-	//} else if  (!strncasecmp(&input, "s", 1)) {
-	//	selected = curses_int("Set scantime in seconds");
-	//	if (selected < 0 || selected > 9999) {
-	//		wlogprint("Invalid selection\n");
-	//		goto retry;
-	//	}
-	//	opt_scantime = selected;
-	//	goto retry;
+	} else if  (!strncasecmp(&input, "s", 1)) {
+		selected = curses_int("Set scantime in seconds");
+		if (selected < 0 || selected > 9999) {
+			wlogprint("Invalid selection\n");
+			goto retry;
+		}
+		opt_scantime = selected;
+		goto retry;
 	} else if  (!strncasecmp(&input, "e", 1)) {
 		selected = curses_int("Set expiry time in seconds");
 		if (selected < 0 || selected > 9999) {
@@ -6572,6 +6531,7 @@ static void *longpoll_thread(void *userdata);
 static bool stratum_works(struct pool *pool)
 {
 	applog(LOG_INFO, "Testing pool %d stratum %s", pool->pool_no, pool->stratum_url);
+	check_extranonce_option(pool, pool->stratum_url);
 	if (!extract_sockaddr(pool->stratum_url, &pool->sockaddr_url, &pool->stratum_port))
 		return false;
 
@@ -6678,7 +6638,9 @@ retry_stratum:
 		bool init = pool_tset(pool, &pool->stratum_init);
 
 		if (!init) {
-			bool ret = initiate_stratum(pool) && (!pool->extranonce_subscribe || subscribe_extranonce(pool)) && auth_stratum(pool);
+			bool ret = initiate_stratum(pool) && auth_stratum(pool);
+
+			extranonce_subscribe_stratum(pool);
 			if (ret)
 				init_stratum_threads(pool);
 			else
@@ -7487,7 +7449,7 @@ out:
 
 static inline bool abandon_work(struct work *work, struct timeval *wdiff, uint64_t hashes)
 {
-	if (wdiff->tv_sec > max_scantime || hashes >= 0xfffffffe ||
+	if (wdiff->tv_sec > opt_scantime || hashes >= 0xfffffffe ||
 	    stale_work(work, false))
 		return true;
 	return false;
@@ -9320,22 +9282,6 @@ static void hotplug_process(void)
 }
 
 #define DRIVER_DRV_DETECT_HOTPLUG(X) X##_drv.drv_detect(true);
-static void reinit_usb(void)
- {
- 	int err;
-
- 	usb_reinit = true;
- 	/* Wait till libusb_poll_thread is no longer polling */
- 	while (polling_usb)
- 		cgsleep_ms(100);
-
- 	applog(LOG_DEBUG, "Reinitialising libusb");
- 	libusb_exit(NULL);
- 	err = libusb_init(NULL);
- 	if (err)
- 		quit(1, "Reinit of libusb failed err %d:%s", err, libusb_error_name(err));
- 	usb_reinit = false;
- }
 
 static void *hotplug_thread(void __maybe_unused *userdata)
 {
@@ -9362,11 +9308,7 @@ static void *hotplug_thread(void __maybe_unused *userdata)
 
 			if (new_devices)
 				hotplug_process();
-			/* If we have no active devices, libusb may need to
- 			 * be re-initialised to work properly */
- 			if (total_devices == zombie_devs)
- 				reinit_usb();
- 
+
 			// hotplug_time >0 && <=9999
 			cgsleep_ms(hotplug_time * 1000);
 		}
@@ -9398,16 +9340,9 @@ static void *libusb_poll_thread(void __maybe_unused *arg)
 
 	RenameThread("USBPoll");
 
-	while (usb_polling){
- 		tv_end.tv_sec = 0;
-  		tv_end.tv_usec = 100000;
- 		while (usb_reinit) {
- 			polling_usb = false;
- 			cgsleep_ms(100);
- 		}
- 		polling_usb = true;
+	while (usb_polling)
 		libusb_handle_events_timeout_completed(NULL, &tv_end, NULL);
-}
+
 	/* Cancel any cancellable usb transfers */
 	cancel_usb_transfers();
 
@@ -9604,8 +9539,8 @@ int main(int argc, char *argv[])
 		opt_log_output = true;
 
 	/* Use a shorter scantime for scrypt */
-	//if (opt_scantime < 0)
-	//	opt_scantime = opt_scrypt ? 30 : 60;
+	if (opt_scantime < 0)
+		opt_scantime = opt_scrypt ? 30 : 60;
 
 	total_control_threads = 8;
 	control_thr = calloc(total_control_threads, sizeof(*thr));

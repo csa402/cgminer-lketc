@@ -1089,7 +1089,7 @@ typedef bool (*sha256_func)(struct thr_info*, const unsigned char *pmidstate,
 extern bool fulltest(const unsigned char *hash, const unsigned char *target);
 
 extern int opt_queue;
-extern const int max_scantime;
+extern int opt_scantime;
 extern int opt_expiry;
 
 extern cglock_t control_lock;
@@ -1329,7 +1329,6 @@ struct pool {
 	char bbversion[12];
 	char nbit[12];
 	char ntime[12];
-	double next_diff;
 	double sdiff;
 
 	struct timeval tv_lastwork;

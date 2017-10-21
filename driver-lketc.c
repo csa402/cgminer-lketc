@@ -60,9 +60,9 @@ static struct name_chip_map {
 	char	*model_name;
 	int	chips_count;
 } lketc_models[] = {
-	{ "Lketc   ",		1  },
-	{ "Dragon 1",		2  },
-	{ "Dragon 2",		3  },
+	{ "Lketc ",		1  },
+	{ "Stick ",		2  },
+	{ "Dragon",		3  },
 	{ NULL, 0 }
 };
 
@@ -397,52 +397,6 @@ static bool lketc_initialize_cp2102(struct cgpu_info *lketc)
 	//if (lketc_usb_control_transfer_data(lketc, CP210X_TYPE_OUT, CP210X_REQUEST_BAUD,
 	//		0, interface, &baudrate, sizeof(baudrate), C_SETBAUD))
 	//	return false;
-
-	return true;
-}
-
-static bool lketc_initialize_ftdi(struct cgpu_info *lketc)
-{
-	int interface = usb_interface(lketc);
-
-	// Reset
-	if (lketc_usb_control_transfer(lketc, FTDI_TYPE_OUT, FTDI_REQUEST_RESET,
-		FTDI_VALUE_RESET, interface, C_RESET))
-		return false;
-
-	// Latency
-	if (lketc_usb_control_transfer(lketc, FTDI_TYPE_OUT, FTDI_REQUEST_LATENCY,
-		100, interface, C_LATENCY))
-		return false;
-
-	// Data
-	if (lketc_usb_control_transfer(lketc, FTDI_TYPE_OUT, FTDI_REQUEST_DATA,
-		FTDI_VALUE_DATA_LKE, interface, C_SETDATA))
-		return false;
-
-	// Baudrate
-	if (lketc_usb_control_transfer(lketc, FTDI_TYPE_OUT, FTDI_REQUEST_BAUD,
-		FTDI_VALUE_BAUD_LKE, (FTDI_INDEX_BAUD_LKE & 0xff00) | interface, C_SETBAUD))
-		return false;
-
-	// Modem control
-	if (lketc_usb_control_transfer(lketc, FTDI_TYPE_OUT, FTDI_REQUEST_MODEM,
-		FTDI_VALUE_MODEM, interface, C_SETMODEM))
-		return false;
-
-	// Flow control
-	if (lketc_usb_control_transfer(lketc, FTDI_TYPE_OUT, FTDI_REQUEST_FLOW,
-		FTDI_VALUE_FLOW, interface, C_SETFLOW))
-		return false;
-
-	// Clear buffers
-	if (lketc_usb_control_transfer(lketc, FTDI_TYPE_OUT, FTDI_REQUEST_RESET,
-		FTDI_VALUE_PURGE_TX, interface, C_PURGETX))
-		return false;
-
-	if (lketc_usb_control_transfer(lketc, FTDI_TYPE_OUT, FTDI_REQUEST_RESET,
-		FTDI_VALUE_PURGE_RX, interface, C_PURGERX))
-		return false;
 
 	return true;
 }

@@ -21,7 +21,7 @@ to build this specific code:
 
 	sudo apt-get update
 	sudo apt-get install build-essential autoconf automake libtool pkg-config libcurl4-openssl-dev libudev-dev \
-	libjansson-dev libncurses5-dev
+	libjansson-dev libncurses5-dev git
 	./autogen.sh
 	./configure --enable-scrypt --enable-lketc
 	make
@@ -55,9 +55,3 @@ Exemple If you use Lketc and a Gaw Fury :
 
 ![](https://raw.githubusercontent.com/wareck/cgminer-lketc/master/docs/mining.png)
 
-## Nicehash extranonce support ##
-
-You can use your miner with last extranonce support for nicehash by adding #xnsub at the address end, like this:
-
-	./cgminer --scrypt -o stratum+tcp://scrypt.eu.nicehash.com:3333#xnsub -u my_btc_address -p x --lketc-clock 280
-	
