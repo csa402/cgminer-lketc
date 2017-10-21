@@ -176,8 +176,7 @@ enum sub_ident {
 	IDENT_GSD3,
 	IDENT_ZUS1,
 	IDENT_ZUS2,
-	IDENT_LKE,
-	IDENT_LKE1
+	IDENT_LKE
 };
 
 struct usb_find_devices {
