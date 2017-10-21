@@ -60,9 +60,9 @@ static struct name_chip_map {
 	char	*model_name;
 	int	chips_count;
 } lketc_models[] = {
-	{ "Lketc  ",		1  },
-	{ "Dragon1",		2  },
-	{ "Dragon2",		3  },
+	{ "Lketc   ",		1  },
+	{ "Dragon 1",		2  },
+	{ "Dragon 2",		3  },
 	{ NULL, 0 }
 };
 
@@ -461,9 +461,6 @@ static bool lketc_initialize_usb(struct cgpu_info *lketc)
 	case IDENT_LKE:
 		info->read_data_offset = 0;
 		return lketc_initialize_cp2102(lketc);
-	case IDENT_LKE1:
-		info->read_data_offset = 2;		// FTDIRL adds 2 status bytes
-		return lketc_initialize_ftdi(lketc);
 	default:
 		applog(LOG_ERR, "lketc_initialize_usb called on wrong device, ident=%d", ident);
 		return false;
