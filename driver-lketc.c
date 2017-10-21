@@ -60,8 +60,9 @@ static struct name_chip_map {
 	char	*model_name;
 	int	chips_count;
 } lketc_models[] = {
-	{ "Stick ",		1  },
-	{ "Dragon ",		6  },
+	{ "Lketc  ",		1  },
+	{ "Dragon1",		2  },
+	[ "Dragon2",		3  },
 	{ NULL, 0 }
 };
 
@@ -970,7 +971,6 @@ static int lketc_autoscan()
 	int found = 0;
 	applog(LOG_DEBUG, "lketc_autoscan() called");
 	found += serial_autodetect_udev(lketc_detect_one_serial, LKETC_USB_ID_MODEL_STR1);
-	found += serial_autodetect_udev(lketc_detect_one_serial, LKETC_USB_ID_MODEL_STR2);
 	return found;
 }
 
