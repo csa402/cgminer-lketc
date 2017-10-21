@@ -62,7 +62,7 @@ static struct name_chip_map {
 } lketc_models[] = {
 	{ "Lketc  ",		1  },
 	{ "Dragon1",		2  },
-	[ "Dragon2",		3  },
+	{ "Dragon2",		3  },
 	{ NULL, 0 }
 };
 
