@@ -10,9 +10,7 @@
 
 #ifndef USBUTILS_H
 #define USBUTILS_H
-
 #include <libusb.h>
-
 #include "util.h"
 
 #define EPI(x) (LIBUSB_ENDPOINT_IN | (unsigned char)(x))
