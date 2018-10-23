@@ -432,15 +432,6 @@ static struct usb_epinfo lke_epinfos_cp2102[] = {
 static struct usb_intinfo lke_ints_cp2102[] = {
         USB_EPS(0, lke_epinfos_cp2102)
 };
-
-static struct usb_epinfo lke_epinfos_ftdi[] = {
-        { LIBUSB_TRANSFER_TYPE_BULK,    64,     EPI(1), 0, 0 },
-        { LIBUSB_TRANSFER_TYPE_BULK,    64,     EPO(2), 0, 0 }
-};
-
-static struct usb_intinfo lke_ints_ftdi[] = {
-        USB_EPS(0, lke_epinfos_ftdi)
-};
 #endif
 
 

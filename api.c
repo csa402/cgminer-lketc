@@ -212,7 +212,7 @@ static const char *DEVICECODE = ""
 #endif
 
 #ifdef USE_LKETC
-            		"LKE "
+           	"LKE "
 #endif
 			"";
 

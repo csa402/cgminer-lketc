@@ -1,5 +1,5 @@
-cgminer-scrypt-mod2
-==============
+cgminer-scrypt-2 + lketc support
+================================
 
 CGMiner 4.3.5 with GridSeed, Zeus and Lketc scrypt ASIC support.
 

@@ -1826,7 +1826,7 @@ static char *opt_verusage_and_exit(const char *extra)
 		"Zeus "
 #endif
 #ifdef USE_LKETC
-                "Lketc "
+        "Lketc "
 #endif
 
 #ifdef USE_SCRYPT
